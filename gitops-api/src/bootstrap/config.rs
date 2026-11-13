@@ -10,6 +10,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use crate::app::HttpLimits;
+use crate::platform::security::api_key::{ApiKeyError, ApiKeys};
 use crate::platform::telemetry::{LogFormat, UnknownLogFormat};
 
 /// Names of the environment variables this service reads.
@@ -19,6 +20,8 @@ pub mod env {
     pub const LOG_FORMAT: &str = "LOG_FORMAT";
     pub const REQUEST_TIMEOUT_SECS: &str = "REQUEST_TIMEOUT_SECS";
     pub const MAX_REQUEST_BODY_BYTES: &str = "MAX_REQUEST_BODY_BYTES";
+    /// Comma-separated bearer keys for protected routes. Secret.
+    pub const API_KEYS: &str = "API_KEYS";
 }
 
 pub const DEFAULT_PORT: u16 = 8080;
@@ -42,6 +45,9 @@ pub enum ConfigError {
     InvalidRequestTimeout(String),
     #[error("MAX_REQUEST_BODY_BYTES must be an integer between 1 and 16777216, got {0:?}")]
     InvalidMaxBody(String),
+    /// Never echoes the value: it is a secret.
+    #[error("API_KEYS is invalid: {0}")]
+    InvalidApiKeys(ApiKeyError),
 }
 
 /// Validated runtime configuration. Unset variables take their default;
@@ -52,6 +58,8 @@ pub struct Config {
     pub environment: String,
     pub log_format: LogFormat,
     pub http: HttpLimits,
+    /// Empty when `API_KEYS` is unset: protected routes then reject everything.
+    pub api_keys: ApiKeys,
 }
 
 impl Config {
@@ -104,6 +112,10 @@ impl Config {
                     .transpose()?
                     .unwrap_or(defaults.max_body_bytes),
             },
+            api_keys: lookup(env::API_KEYS)
+                .map(|raw| ApiKeys::parse(&raw).map_err(ConfigError::InvalidApiKeys))
+                .transpose()?
+                .unwrap_or_default(),
         })
     }
 
@@ -161,6 +173,7 @@ mod tests {
         assert_eq!(cfg.environment, DEFAULT_ENVIRONMENT);
         assert_eq!(cfg.log_format, LogFormat::Json);
         assert_eq!(cfg.http, HttpLimits::default());
+        assert!(cfg.api_keys.is_empty());
         assert_eq!(cfg.bind_addr().to_string(), "0.0.0.0:8080");
     }
 
@@ -172,6 +185,10 @@ mod tests {
             ("LOG_FORMAT", "Pretty"),
             ("REQUEST_TIMEOUT_SECS", "5"),
             ("MAX_REQUEST_BODY_BYTES", "1024"),
+            (
+                "API_KEYS",
+                "k1-0123456789abcdef0123456789abcdef,k2-0123456789abcdef0123456789abcdef",
+            ),
         ]))
         .unwrap();
         assert_eq!(cfg.port, 9000);
@@ -179,6 +196,8 @@ mod tests {
         assert_eq!(cfg.log_format, LogFormat::Pretty);
         assert_eq!(cfg.http.request_timeout, Duration::from_secs(5));
         assert_eq!(cfg.http.max_body_bytes, 1024);
+        assert_eq!(cfg.api_keys.len(), 2);
+        assert!(cfg.api_keys.verify("k2-0123456789abcdef0123456789abcdef"));
     }
 
     #[test]
@@ -224,5 +243,15 @@ mod tests {
                 Err(ConfigError::InvalidMaxBody(bad.to_owned())),
             );
         }
+    }
+
+    #[test]
+    fn rejects_invalid_api_keys_without_echoing_them() {
+        let secret = "too-short-secret";
+        let err = Config::from_lookup(lookup(&[("API_KEYS", secret)])).unwrap_err();
+        assert_eq!(err, ConfigError::InvalidApiKeys(ApiKeyError::Malformed(1)));
+        assert!(!err.to_string().contains(secret));
+        // Set but empty is an error, not "auth disabled".
+        assert!(Config::from_lookup(lookup(&[("API_KEYS", "")])).is_err());
     }
 }

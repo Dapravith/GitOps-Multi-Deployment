@@ -6,12 +6,12 @@ mod common;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use common::{app, get, ready_state, send};
-use gitops_api::{AppState, BUILD_INFO};
+use gitops_api::BUILD_INFO;
 use serde_json::json;
 
 #[tokio::test]
 async fn health_is_ok_even_when_not_ready() {
-    let res = get(app(AppState::new("test")), "/health").await;
+    let res = get(app(common::state("test")), "/health").await;
     assert_eq!(res.status, StatusCode::OK);
     assert_eq!(res.header("content-type"), "application/json");
     assert_eq!(res.json(), json!({ "status": "ok" }));
@@ -19,7 +19,7 @@ async fn health_is_ok_even_when_not_ready() {
 
 #[tokio::test]
 async fn ready_reflects_state() {
-    let state = AppState::new("test");
+    let state = common::state("test");
 
     let res = get(app(state.clone()), "/ready").await;
     assert_eq!(res.status, StatusCode::SERVICE_UNAVAILABLE);

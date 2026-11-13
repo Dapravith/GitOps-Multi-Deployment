@@ -8,7 +8,7 @@ use std::future::Future;
 use std::io;
 
 use tokio::net::TcpListener;
-use tracing::info;
+use tracing::{info, warn};
 
 use super::config::Config;
 use super::dependencies;
@@ -36,8 +36,12 @@ pub async fn run(config: &Config) -> Result<(), Error> {
         git_sha = BUILD_INFO.git_sha,
         request_timeout_ms = config.http.request_timeout.as_millis(),
         max_body_bytes = config.http.max_body_bytes,
+        api_keys = config.api_keys.len(),
         "server listening"
     );
+    if config.api_keys.is_empty() {
+        warn!("API_KEYS is not set: every protected endpoint will return 401");
+    }
 
     serve(listener, state, config.http, shutdown::signal())
         .await

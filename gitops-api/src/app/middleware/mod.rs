@@ -17,6 +17,7 @@
 //! `Router::layer` wraps what is already there, so [`apply`] adds the layers
 //! innermost first: read it bottom-up to see the request order.
 
+pub mod authentication;
 mod request_id;
 mod security;
 

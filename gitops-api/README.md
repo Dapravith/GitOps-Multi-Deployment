@@ -10,6 +10,7 @@ See [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) for the full picture.
 | `GET /health` | process is serving | — |
 | `GET /ready` | accepting traffic | 503 while starting/draining |
 | `GET /version` | always | JSON: name, version, git_sha, environment |
+| `POST/GET /items`, `GET/PUT/DELETE /items/{id}` | valid `Authorization: Bearer <key>` | 401 without one; see [`docs/API-CONTRACT.md`](docs/API-CONTRACT.md) |
 
 ## Configuration
 
@@ -21,6 +22,7 @@ See [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) for the full picture.
 | `RUST_LOG` | `info` | standard `EnvFilter` syntax |
 | `REQUEST_TIMEOUT_SECS` | `10` | 1–60; slower handlers get 503 |
 | `MAX_REQUEST_BODY_BYTES` | `65536` | 1–16 MiB; larger bodies get 413 |
+| `API_KEYS` | unset (all `/items` → 401) | secret; 1–8 comma-separated keys, 32–256 chars each |
 
 See [`.env.example`](.env.example).
 
@@ -40,11 +42,14 @@ src/
 │   ├── state.rs            AppState (dependency container)
 │   ├── error.rs            ApiError → status + {"status": code}
 │   ├── response.rs         StatusBody
-│   └── middleware/         request id, security headers, timeout, body limit, trace
+│   ├── extract.rs          ApiJson / ApiQuery: rejections become ApiError
+│   └── middleware/         request id, security headers, timeout, body limit, trace, authentication
 ├── modules/                one directory per feature
-│   └── system/             /health, /ready, /version
+│   ├── system/             /health, /ready, /version
+│   └── items/              CRUD: domain / application / transport / infrastructure
 └── platform/               no deps on the rest of the crate
     ├── telemetry.rs        tracing subscriber, LogFormat
+    ├── security/api_key.rs API-key parsing + constant-time verification
     ├── shutdown.rs         SIGTERM / SIGINT
     └── build_info.rs       compile-time name / version / git_sha
 ```
@@ -73,6 +78,26 @@ scripts/cargo.sh test --locked
 
 ```bash
 PUBLISH=1 LOG_FORMAT=pretty scripts/cargo.sh run
+```
+
+## API tests (Postman / newman)
+
+[`postman/`](postman/) has a collection of 38 requests with 203 assertions covering the whole
+[contract](docs/API-CONTRACT.md): probes, auth, CRUD, and every error. Every response is
+also checked for the security headers and `x-request-id`.
+
+1. Import `postman/gitops-api.postman_collection.json` and `postman/gitops-api.postman_environment.json`.
+2. In the environment, set `baseUrl` and set `apiKey` to one of the service's `API_KEYS`.
+3. Run the collection (folder 3 depends on the order of its requests).
+
+Without Postman, start the service with a key and run newman in its network namespace:
+
+```bash
+KEY="$(openssl rand -hex 24)"
+cid=$(docker run -d --rm -e API_KEYS="$KEY" gitops-api:dev)
+docker run --rm --network "container:$cid" -v "$PWD/postman:/etc/newman:ro" postman/newman:6-alpine \
+  run gitops-api.postman_collection.json -e gitops-api.postman_environment.json --env-var "apiKey=$KEY"
+docker stop "$cid"
 ```
 
 ## Container image

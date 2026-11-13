@@ -1,0 +1,1555 @@
+{
+  "info": {
+    "_postman_id": "6f1c2f2e-3c1e-4c55-9a59-6a1f0e7c2b10",
+    "name": "gitops-api",
+    "description": "Full contract test suite for gitops-api (docs/API-CONTRACT.md).\n\nSetup: import `gitops-api.postman_environment.json`, set `apiKey` to one of the keys in the service's `API_KEYS`, and set `baseUrl`. Then run the whole collection (Runner, or `newman run`).\n\nEvery response is also checked for the security headers and `x-request-id` (collection-level test).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{apiKey}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Runs after EVERY request in the collection.",
+          "pm.test(\"[global] security headers present\", () => {",
+          "    pm.expect(pm.response.headers.get(\"X-Content-Type-Options\")).to.eql(\"nosniff\");",
+          "    pm.expect(pm.response.headers.get(\"X-Frame-Options\")).to.eql(\"DENY\");",
+          "    pm.expect(pm.response.headers.get(\"Content-Security-Policy\")).to.eql(\"default-src 'none'; frame-ancestors 'none'\");",
+          "    pm.expect(pm.response.headers.get(\"Referrer-Policy\")).to.eql(\"no-referrer\");",
+          "    pm.expect(pm.response.headers.get(\"Cache-Control\")).to.eql(\"no-store\");",
+          "    pm.expect(pm.response.headers.get(\"Cross-Origin-Resource-Policy\")).to.eql(\"same-origin\");",
+          "});",
+          "pm.test(\"[global] x-request-id present\", () => pm.expect(pm.response.headers.has(\"x-request-id\")).to.be.true);",
+          "pm.test(\"[global] responds within 2s\", () => pm.expect(pm.response.responseTime).to.be.below(2000));"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "itemId",
+      "value": ""
+    },
+    {
+      "key": "itemName",
+      "value": ""
+    },
+    {
+      "key": "dupName",
+      "value": ""
+    },
+    {
+      "key": "longName",
+      "value": ""
+    },
+    {
+      "key": "longDescription",
+      "value": ""
+    },
+    {
+      "key": "bigBody",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Public (no auth)",
+      "description": "Kubernetes probes and build info. Never require a key.",
+      "item": [
+        {
+          "name": "Health (liveness)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"body is {status: ok}\", () => pm.expect(pm.response.json()).to.eql({ status: \"ok\" }));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Ready (readiness)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"body is {status: ready}\", () => pm.expect(pm.response.json()).to.eql({ status: \"ready\" }));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ready",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ready"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Version",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"has name, version, git_sha, environment\", () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.all.keys(\"name\", \"version\", \"git_sha\", \"environment\");",
+                  "    pm.expect(body.name).to.eql(\"gitops-api\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/version",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "version"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Unknown route -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"JSON error body with status=not_found\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"not_found\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/does-not-exist",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "does-not-exist"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Wrong method -> 405",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 405\", () => pm.response.to.have.status(405));",
+                  "pm.test(\"JSON error body with status=method_not_allowed\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"method_not_allowed\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Valid x-request-id is echoed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"request id echoed\", () => pm.expect(pm.response.headers.get(\"x-request-id\")).to.eql(\"postman-trace-123\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-request-id",
+                "value": "postman-trace-123"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Unsafe x-request-id is replaced",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"request id replaced by a UUID\", () => {",
+                  "    const id = pm.response.headers.get(\"x-request-id\");",
+                  "    pm.expect(id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-request-id",
+                "value": "has spaces {\"inject\":1}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          }
+        }
+      ],
+      "auth": {
+        "type": "noauth"
+      }
+    },
+    {
+      "name": "2. Authentication",
+      "description": "Every /items route needs `Authorization: Bearer {{apiKey}}`. Missing, wrong and malformed keys all get the same 401.",
+      "item": [
+        {
+          "name": "No key -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"JSON error body with status=unauthorized\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"unauthorized\");",
+                  "});",
+                  "pm.test(\"WWW-Authenticate challenge\", () => pm.expect(pm.response.headers.get(\"WWW-Authenticate\")).to.eql('Bearer realm=\"gitops-api\"'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Wrong key -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"JSON error body with status=unauthorized\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"unauthorized\");",
+                  "});",
+                  "pm.test(\"WWW-Authenticate challenge\", () => pm.expect(pm.response.headers.get(\"WWW-Authenticate\")).to.eql('Bearer realm=\"gitops-api\"'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "wrong-key-0123456789abcdef0123456789abcdef",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Basic scheme -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"JSON error body with status=unauthorized\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"unauthorized\");",
+                  "});",
+                  "pm.test(\"WWW-Authenticate challenge\", () => pm.expect(pm.response.headers.get(\"WWW-Authenticate\")).to.eql('Bearer realm=\"gitops-api\"'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Basic {{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Key without Bearer prefix -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"JSON error body with status=unauthorized\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"unauthorized\");",
+                  "});",
+                  "pm.test(\"WWW-Authenticate challenge\", () => pm.expect(pm.response.headers.get(\"WWW-Authenticate\")).to.eql('Bearer realm=\"gitops-api\"'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Bad body without key -> 401 (auth runs first)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"JSON error body with status=unauthorized\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"unauthorized\");",
+                  "});",
+                  "pm.test(\"WWW-Authenticate challenge\", () => pm.expect(pm.response.headers.get(\"WWW-Authenticate\")).to.eql('Bearer realm=\"gitops-api\"'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{not json"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Lowercase 'bearer' scheme -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "bearer {{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Items CRUD (run in order)",
+      "description": "Create, read, list, replace, delete. Requests share `itemId` / `itemName` collection variables, so run this folder top to bottom.",
+      "item": [
+        {
+          "name": "Create item -> 201",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Unique per run so the collection can be re-run without 409s.",
+                  "pm.collectionVariables.set(\"itemName\", \"Widget-\" + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "const item = pm.response.json();",
+                  "pm.test(\"item shape\", () => {",
+                  "    pm.expect(item).to.have.all.keys(\"id\", \"name\", \"description\");",
+                  "    pm.expect(item.id).to.match(/^[0-9a-f-]{36}$/);",
+                  "});",
+                  "pm.test(\"name trimmed, description kept\", () => {",
+                  "    pm.expect(item.name).to.eql(pm.collectionVariables.get(\"itemName\"));",
+                  "    pm.expect(item.description).to.eql(\"blue\\nand round\");",
+                  "});",
+                  "pm.test(\"Location header points at the item\", () =>",
+                  "    pm.expect(pm.response.headers.get(\"Location\")).to.eql(\"/items/\" + item.id));",
+                  "pm.collectionVariables.set(\"itemId\", item.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"  {{itemName}}  \",\n  \"description\": \"blue\\nand round\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get item -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"same item\", () => {",
+                  "    pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get(\"itemId\"));",
+                  "    pm.expect(pm.response.json().name).to.eql(pm.collectionVariables.get(\"itemName\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/items/{{itemId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items",
+                "{{itemId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List items -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"page envelope\", () => {",
+                  "    pm.expect(body).to.have.all.keys(\"items\", \"total\", \"limit\", \"offset\");",
+                  "    pm.expect(body.limit).to.eql(100);",
+                  "    pm.expect(body.offset).to.eql(0);",
+                  "    pm.expect(body.total).to.be.at.least(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/items?limit=100&offset=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "100"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Duplicate name (different case) -> 409",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Same name, upper-cased: uniqueness is case-insensitive.",
+                  "pm.collectionVariables.set(\"dupName\", pm.collectionVariables.get(\"itemName\").toUpperCase());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"JSON error body with status=conflict\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"conflict\");",
+                  "});",
+                  "pm.test(\"safe validation message\", () => pm.expect(pm.response.json().message).to.eql(\"an item with this name already exists\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": \"{{dupName}}\" }"
+            }
+          }
+        },
+        {
+          "name": "Replace item (PUT) -> 200",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"itemName\", \"Gadget-\" + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "const item = pm.response.json();",
+                  "pm.test(\"item shape\", () => {",
+                  "    pm.expect(item).to.have.all.keys(\"id\", \"name\", \"description\");",
+                  "    pm.expect(item.id).to.match(/^[0-9a-f-]{36}$/);",
+                  "});",
+                  "pm.test(\"id unchanged, description reset to empty\", () => {",
+                  "    pm.expect(item.id).to.eql(pm.collectionVariables.get(\"itemId\"));",
+                  "    pm.expect(item.name).to.eql(pm.collectionVariables.get(\"itemName\"));",
+                  "    pm.expect(item.description).to.eql(\"\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/items/{{itemId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items",
+                "{{itemId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": \"{{itemName}}\" }"
+            }
+          }
+        },
+        {
+          "name": "Delete item -> 204",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 204\", () => pm.response.to.have.status(204));",
+                  "pm.test(\"empty body\", () => pm.expect(pm.response.text()).to.eql(\"\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/items/{{itemId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items",
+                "{{itemId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get deleted item -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"JSON error body with status=not_found\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"not_found\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/items/{{itemId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items",
+                "{{itemId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete again -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"JSON error body with status=not_found\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"not_found\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/items/{{itemId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items",
+                "{{itemId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Validation & errors",
+      "description": "Every 4xx the API can return. Nothing here is stored: all requests fail validation.",
+      "item": [
+        {
+          "name": "Empty name -> 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"JSON error body with status=validation_failed\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"validation_failed\");",
+                  "});",
+                  "pm.test(\"safe validation message\", () => pm.expect(pm.response.json().message).to.eql(\"name: must not be empty\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": \"   \" }"
+            }
+          }
+        },
+        {
+          "name": "Name over 100 chars -> 422",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"longName\", \"x\".repeat(101));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"JSON error body with status=validation_failed\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"validation_failed\");",
+                  "});",
+                  "pm.test(\"safe validation message\", () => pm.expect(pm.response.json().message).to.eql(\"name: must be at most 100 characters\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": \"{{longName}}\" }"
+            }
+          }
+        },
+        {
+          "name": "Control characters in name -> 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"JSON error body with status=validation_failed\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"validation_failed\");",
+                  "});",
+                  "pm.test(\"safe validation message\", () => pm.expect(pm.response.json().message).to.eql(\"name: must not contain control characters\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": \"red\\u001b[31m\" }"
+            }
+          }
+        },
+        {
+          "name": "Description over 1000 chars -> 422",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"longDescription\", \"d\".repeat(1001));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"JSON error body with status=validation_failed\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"validation_failed\");",
+                  "});",
+                  "pm.test(\"safe validation message\", () => pm.expect(pm.response.json().message).to.eql(\"description: must be at most 1000 characters\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": \"ok-{{$timestamp}}\", \"description\": \"{{longDescription}}\" }"
+            }
+          }
+        },
+        {
+          "name": "Missing name field -> 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"JSON error body with status=validation_failed\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"validation_failed\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Client-chosen id (unknown field) -> 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"JSON error body with status=validation_failed\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"validation_failed\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": \"x-{{$timestamp}}\", \"id\": \"00000000-0000-0000-0000-000000000000\" }"
+            }
+          }
+        },
+        {
+          "name": "Wrong field type -> 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"JSON error body with status=validation_failed\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"validation_failed\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": 42 }"
+            }
+          }
+        },
+        {
+          "name": "Invalid JSON -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"JSON error body with status=bad_request\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"bad_request\");",
+                  "});",
+                  "pm.test(\"safe validation message\", () => pm.expect(pm.response.json().message).to.eql(\"request body is not valid JSON\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": "
+            }
+          }
+        },
+        {
+          "name": "Wrong Content-Type -> 415",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 415\", () => pm.response.to.have.status(415));",
+                  "pm.test(\"JSON error body with status=unsupported_media_type\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"unsupported_media_type\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "text/plain"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": \"x\" }"
+            }
+          }
+        },
+        {
+          "name": "Body over 64 KiB -> 413",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"bigBody\", \" \".repeat(70000));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 413\", () => pm.response.to.have.status(413));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{bigBody}}"
+            }
+          }
+        },
+        {
+          "name": "Malformed id -> 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"JSON error body with status=validation_failed\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"validation_failed\");",
+                  "});",
+                  "pm.test(\"safe validation message\", () => pm.expect(pm.response.json().message).to.eql(\"id: must be a UUID\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/items/not-a-uuid",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items",
+                "not-a-uuid"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Unknown id -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"JSON error body with status=not_found\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"not_found\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/items/01e5f69e-ea87-4cda-8421-0663fb93b094",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items",
+                "01e5f69e-ea87-4cda-8421-0663fb93b094"
+              ]
+            }
+          }
+        },
+        {
+          "name": "limit=0 -> 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"JSON error body with status=validation_failed\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"validation_failed\");",
+                  "});",
+                  "pm.test(\"safe validation message\", () => pm.expect(pm.response.json().message).to.eql(\"limit: must be between 1 and 100\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/items?limit=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "limit=101 -> 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"JSON error body with status=validation_failed\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"validation_failed\");",
+                  "});",
+                  "pm.test(\"safe validation message\", () => pm.expect(pm.response.json().message).to.eql(\"limit: must be between 1 and 100\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/items?limit=101",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "101"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "limit=abc -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"JSON error body with status=bad_request\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"bad_request\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/items?limit=abc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "abc"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Unknown query param -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"JSON error body with status=bad_request\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"bad_request\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/items?page=2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "2"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "PATCH not supported -> 405",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 405\", () => pm.response.to.have.status(405));",
+                  "pm.test(\"JSON error body with status=method_not_allowed\", () => {",
+                  "    pm.response.to.have.header(\"Content-Type\", \"application/json\");",
+                  "    pm.expect(pm.response.json().status).to.eql(\"method_not_allowed\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "items"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
