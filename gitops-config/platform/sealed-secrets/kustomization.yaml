@@ -1,0 +1,71 @@
+# Sealed Secrets controller v0.41.2, managed by Argo CD (Application `sealed-secrets`).
+#
+# upstream/controller-v0.41.2.yaml is the release asset, vendored unmodified:
+#   sha256 5973b18ef77ae91e464bac62542a12c48844a08da69d80e45a8fc7f0d67fe205
+# (upstream's signed checksums file covers kubeseal binaries only, not controller.yaml).
+# Upgrade = replace that file in a reviewed PR and update the sha256 above.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Own namespace (restricted PSA) instead of upstream's kube-system.
+namespace: sealed-secrets
+
+resources:
+  - namespace.yaml
+  - upstream/controller-v0.41.2.yaml
+  - rbac.yaml
+
+images:
+  - name: docker.io/bitnami/sealed-secrets-controller
+    newTag: 0.41.2
+    digest: sha256:e63ec6ec2b12a471bf781081bd370a93ca7b7b3999e5b9243341379aeb801d0b
+
+patches:
+  # Upstream lets EVERY authenticated user proxy to the controller service
+  # (fetch cert, /v1/verify, /v1/rotate). We seal offline against the committed
+  # public cert, so drop that cluster-wide grant.
+  - target: {kind: RoleBinding, name: sealed-secrets-service-proxier}
+    patch: |-
+      $patch: delete
+      kind: RoleBinding
+      metadata: {name: sealed-secrets-service-proxier}
+  - target: {kind: Role, name: sealed-secrets-service-proxier}
+    patch: |-
+      $patch: delete
+      kind: Role
+      metadata: {name: sealed-secrets-service-proxier}
+  # Least privilege: upstream binds `secrets-unsealer` (read/write ALL Secrets)
+  # cluster-wide. Remove that binding; each environment that uses SealedSecrets
+  # grants it per namespace via apps/gitops-api/components/sealed-secrets-access.
+  - target: {kind: ClusterRoleBinding, name: sealed-secrets-controller}
+    patch: |-
+      $patch: delete
+      kind: ClusterRoleBinding
+      metadata: {name: sealed-secrets-controller}
+  # Deleting the CRD would cascade-delete every SealedSecret in the cluster.
+  - target: {kind: CustomResourceDefinition, name: sealedsecrets.bitnami.com}
+    patch: |-
+      - op: add
+        path: /metadata/annotations
+        value:
+          argocd.argoproj.io/sync-options: Prune=false,Delete=false
+  # Watch only namespaces that opted in (keep in sync with the RoleBindings),
+  # lab sizing, and a high non-root UID (trivy KSV-0020/0021).
+  - target: {kind: Deployment, name: sealed-secrets-controller}
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args
+        value:
+          - --all-namespaces=false
+          - --additional-namespaces=gitops-dev,gitops-staging
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests: {cpu: 10m, memory: 32Mi}
+          limits: {memory: 128Mi}
+      - op: replace
+        path: /spec/template/spec/securityContext/runAsUser
+        value: 65532
+      - op: add
+        path: /spec/template/spec/securityContext/runAsGroup
+        value: 65532

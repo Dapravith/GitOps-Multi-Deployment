@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitops-api-prod
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: gitops-api
+    app.kubernetes.io/environment: prod
+  # Deliberately NO resources finalizer: deleting the Application object must
+  # never cascade-delete production workloads.
+spec:
+  project: gitops-prod
+  source:
+    repoURL: https://github.com/Dapravith/gitops-config.git
+    targetRevision: main
+    path: apps/gitops-api/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gitops-prod
+  revisionHistoryLimit: 10
+  syncPolicy:
+    # No `automated` block: Argo CD only reports OutOfSync. A release manager
+    # must trigger the sync (UI, `argocd app sync gitops-api-prod`, or an
+    # operation patch), after the promotion PR is merged.
+    syncOptions:
+      - ServerSideApply=true
+      - PruneLast=true
+      - FailOnSharedResource=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 2m

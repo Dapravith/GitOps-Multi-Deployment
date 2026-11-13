@@ -1,0 +1,9 @@
+# Never commit cluster credentials
+*.kubeconfig
+kubeconfig*
+# Plaintext secrets must never be committed; only SealedSecret manifests
+*.secret.yaml
+*-unsealed.yaml
+
+# Rendered manifests (scripts/validate.sh output)
+.rendered/

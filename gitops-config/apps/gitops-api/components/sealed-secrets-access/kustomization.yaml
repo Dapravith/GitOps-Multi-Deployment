@@ -1,0 +1,7 @@
+# Opt-in per environment: lets the Sealed Secrets controller create/update the
+# Secrets it decrypts IN THIS NAMESPACE ONLY. Also add the namespace to the
+# controller's --additional-namespaces in platform/sealed-secrets.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - rolebinding.yaml

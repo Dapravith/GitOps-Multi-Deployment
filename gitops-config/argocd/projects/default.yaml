@@ -1,0 +1,13 @@
+# The built-in `default` project allows any repo -> any cluster/namespace.
+# Lock it down so nothing can be deployed outside an explicit project.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: default
+  namespace: argocd
+spec:
+  description: Locked. Use platform, gitops-nonprod or gitops-prod.
+  sourceRepos: []
+  destinations: []
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist: []

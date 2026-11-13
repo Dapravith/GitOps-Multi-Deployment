@@ -1,0 +1,44 @@
+# Argo CD v3.5.7, non-HA, lean lab profile.
+#
+# Applied ONCE by install.sh (the only imperative step in the project). After
+# that, everything under argocd/ is managed by the root Application.
+#
+# The upstream manifest is fetched by tag; install.sh verifies its SHA-256
+# before applying, and every image below is re-pinned by digest.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: argocd
+
+resources:
+  - namespace.yaml
+  - https://raw.githubusercontent.com/argoproj/argo-cd/v3.5.7/manifests/install.yaml
+
+images:
+  - name: quay.io/argoproj/argocd
+    newTag: v3.5.7
+    digest: sha256:16df57da6f223808d204cd94c67c929b931fa01670b91b0b3a2298c4647de0db
+  - name: public.ecr.aws/docker/library/redis
+    newTag: 8.2.3-alpine
+    digest: sha256:08ad0b1d280850169a790dba1393ff7a90aef951fc19632cf4d3ce4f78e679ba
+
+patches:
+  # No SSO in the lab: drop Dex (saves memory, removes an exposed component).
+  - target: {kind: Deployment, name: argocd-dex-server}
+    patch: |-
+      $patch: delete
+      kind: Deployment
+      metadata: {name: argocd-dex-server}
+  - target: {kind: Service, name: argocd-dex-server}
+    patch: |-
+      $patch: delete
+      kind: Service
+      metadata: {name: argocd-dex-server}
+  - target: {kind: NetworkPolicy, name: argocd-dex-server-network-policy}
+    patch: |-
+      $patch: delete
+      kind: NetworkPolicy
+      metadata: {name: argocd-dex-server-network-policy}
+  - path: argocd-cm-patch.yaml
+  - path: argocd-cmd-params-cm-patch.yaml
+  - path: argocd-rbac-cm-patch.yaml

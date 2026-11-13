@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Environment-agnostic manifests. Overlays set namespace, replicas, resources,
+# config values and the image digest. Nothing here may reference a namespace.
+resources:
+  - serviceaccount.yaml
+  - deployment.yaml
+  - service.yaml
+  - networkpolicy.yaml
+
+# Metadata labels only. Selectors are written explicitly in each manifest:
+# includeSelectors would also inject these into NetworkPolicy selectors
+# (silently widening who must carry them) and Deployment selectors are immutable.
+labels:
+  - pairs:
+      app.kubernetes.io/name: gitops-api
+      app.kubernetes.io/part-of: gitops-multi-env
+      app.kubernetes.io/managed-by: argocd
+    includeSelectors: false
+    includeTemplates: true
+
+# Hash-suffixed name: any config change rolls the Deployment. Rollback is a Git
+# revert, which regenerates the previous name/hash.
+configMapGenerator:
+  - name: gitops-api-config
+    literals:
+      - LOG_FORMAT=json
+      - PORT=8080
+      - RUST_LOG=info
+
+# The container image is the placeholder `gitops-api` (see deployment.yaml).
+# Every overlay MUST map it to `ghcr.io/dapravith/gitops-api` + `digest:`;
+# scripts/validate.sh fails if any rendered image lacks an @sha256 digest.

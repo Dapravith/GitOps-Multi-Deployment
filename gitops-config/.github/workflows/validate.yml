@@ -1,0 +1,58 @@
+# Required status check for main: every change to desired state must pass the
+# same gate humans run locally (render, schemas, policy, misconfig + secret scan).
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # gitleaks scans full history
+          persist-credentials: false
+      # Same kubectl (and built-in Kustomize) as the lab, checksum-verified.
+      - name: kubectl v1.36.1
+        run: |
+          set -euo pipefail
+          curl -fsSLo kubectl https://dl.k8s.io/release/v1.36.1/bin/linux/amd64/kubectl
+          echo "629d3f410e09bf49b64ae7079f7f0bda1191efed311f7d37fdbab0ad5b0ec2b7  kubectl" | sha256sum -c -
+          sudo install -m 0755 kubectl /usr/local/bin/kubectl
+          kubectl version --client
+      - name: validate.sh
+        run: scripts/validate.sh
+      # Runs for PRs AND for the image-updater's workflow_dispatch on its branch
+      # (GITHUB_TOKEN-made PRs get no pull_request run).
+      - name: Promotion branches change exactly one digest line
+        if: startsWith(github.head_ref || github.ref_name, 'ci/') || startsWith(github.head_ref || github.ref_name, 'promote/')
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          BASE="${PR_BASE:-$(git merge-base origin/main HEAD)}"
+          echo "comparing ${BASE:0:7}...HEAD"
+          files="$(git diff --name-only "$BASE"...HEAD)"
+          echo "$files"
+          if [ "$(echo "$files" | wc -l)" -ne 1 ] \
+             || ! echo "$files" | grep -qE '^apps/gitops-api/overlays/(dev|staging|prod)/kustomization.yaml$'; then
+            echo "::error::promotion PRs may only change one overlay's kustomization.yaml"; exit 1
+          fi
+          changed="$(git diff -U0 "$BASE"...HEAD | grep -E '^[+-] ')"
+          echo "$changed"
+          if [ "$(echo "$changed" | wc -l)" -ne 2 ] \
+             || [ "$(echo "$changed" | grep -cE '^[+-]    digest: sha256:[0-9a-f]{64}$')" -ne 2 ]; then
+            echo "::error::promotion PRs may only change the digest line"; exit 1
+          fi

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cmd-params-cm
+data:
+  # Applications may only live in the argocd namespace (default, made explicit).
+  application.namespaces: ""
+  # Lab sizing: one shard, modest parallelism.
+  controller.status.processors: "10"
+  controller.operation.processors: "5"
+  reposerver.parallelism.limit: "2"

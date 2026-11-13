@@ -1,0 +1,19 @@
+# gitleaks config: default rules plus two narrow, justified allowlists.
+[extend]
+useDefault = true
+
+# Rendered manifests are build output (.gitignore'd), not repository content.
+[[allowlists]]
+description = "validate.sh render output"
+paths = ['''(^|/)\.rendered/''']
+
+# kubeseal ciphertext trips `generic-api-key` (long high-entropy value under a key
+# like `token:`). Allow a finding ONLY when the matched value itself has the shape
+# of kubeseal output for a 4096-bit key: binary starts 0x0200 -> base64 "AgA",
+# then hundreds of base64 chars. No path-based allowlisting: a real token pasted
+# into a SealedSecret file is still flagged (tested). scripts/policy_check.py
+# independently rejects plaintext in SealedSecret templates.
+[[allowlists]]
+description = "Sealed Secrets ciphertext"
+regexTarget = "secret"
+regexes = ['''^AgA[A-Za-z0-9+/]{300,}={0,2}$''']

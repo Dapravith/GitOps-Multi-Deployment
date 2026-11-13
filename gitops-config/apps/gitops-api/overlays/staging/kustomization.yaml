@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: gitops-staging
+
+resources:
+  - namespace.yaml
+  - ../../base
+
+components:
+  - ../../components/sealed-secrets-access
+  - ../../components/pdb
+
+labels:
+  - pairs:
+      app.kubernetes.io/environment: staging
+    includeSelectors: false
+    includeTemplates: true
+
+configMapGenerator:
+  - name: gitops-api-config
+    behavior: merge
+    literals:
+      - APP_ENV=staging
+      - RUST_LOG=info
+
+# --- Image: the ONLY field promotion changes. -------------------------------
+# Promotion = copy this digest from the previous environment's overlay in a PR.
+# Bootstrap value: local build (phase 4) served via the kind ghcr.io mirror;
+# CI replaces it with the GHCR-published digest from phase 8 onward.
+images:
+  - name: gitops-api
+    newName: ghcr.io/dapravith/gitops-api
+    digest: sha256:de04de911d746bd9a3388b7f450931febe819e8c8ca723d660a67052f0af2482
+
+patches:
+  - path: deployment-patch.yaml

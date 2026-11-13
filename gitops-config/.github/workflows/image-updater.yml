@@ -1,0 +1,122 @@
+# Pull-based image updater: proposes new gitops-api images to dev WITHOUT any
+# cross-repo credential. gitops-api's CI never writes here; this repository
+# pulls public facts (latest commit, CI result, GHCR digest, signed provenance)
+# and opens the PR with its own short-lived GITHUB_TOKEN.
+#
+# Trust chain before a digest is proposed:
+#   1. commit = tip of Dapravith/gitops-api main
+#   2. that commit's CI `image` job concluded success (it also ran the Trivy gate)
+#   3. tag sha-<commit> resolves to a multi-arch index in GHCR
+#   4. the digest carries a Sigstore build-provenance attestation signed by
+#      gitops-api's ci.yml on refs/heads/main, FOR THAT SAME COMMIT
+#
+# GitHub does not start workflows for pushes/PRs made with GITHUB_TOKEN, so the
+# required `validate` check is started explicitly via workflow_dispatch on the
+# branch (an allowed exception); it reports on the branch head commit.
+name: image-updater
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-updater
+  cancel-in-progress: false
+
+env:
+  SOURCE_REPO: Dapravith/gitops-api
+  IMAGE: ghcr.io/dapravith/gitops-api
+  SIGNER_WORKFLOW: Dapravith/gitops-api/.github/workflows/ci.yml
+
+jobs:
+  propose-dev:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write        # push ci/dev-* branches (main is protected by the ruleset)
+      pull-requests: write   # open the PR, enable auto-merge
+      actions: write         # dispatch validate.yml on the branch
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Find the newest verified image
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sha="$(gh api "repos/${SOURCE_REPO}/commits/main" --jq .sha)"
+          echo "gitops-api main = ${sha}"
+
+          conclusion="$(gh api "repos/${SOURCE_REPO}/commits/${sha}/check-runs?per_page=100" \
+            --jq '[.check_runs[] | select(.name == "image")] | sort_by(.completed_at) | last | .conclusion // "missing"')"
+          if [ "${conclusion}" != "success" ]; then
+            echo "::notice::CI 'image' job for ${sha:0:7} is '${conclusion}'; nothing to propose yet"
+            echo "ready=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          digest="$(docker buildx imagetools inspect "${IMAGE}:sha-${sha}" --format '{{json .Manifest}}' | jq -r .digest)"
+          [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::no digest for ${IMAGE}:sha-${sha}"; exit 1; }
+
+          # Signed provenance must name THIS commit, THIS workflow, main.
+          gh attestation verify "oci://${IMAGE}@${digest}" --repo "${SOURCE_REPO}" \
+            --signer-workflow "${SIGNER_WORKFLOW}" --format json > attestation.json
+          attested_commit="$(jq -r '.[0].verificationResult.statement.predicate.buildDefinition.resolvedDependencies[0].digest.gitCommit' attestation.json)"
+          attested_ref="$(jq -r '.[0].verificationResult.statement.predicate.buildDefinition.externalParameters.workflow.ref' attestation.json)"
+          if [ "${attested_commit}" != "${sha}" ] || [ "${attested_ref}" != "refs/heads/main" ]; then
+            echo "::error::attestation mismatch: commit=${attested_commit} ref=${attested_ref}, expected ${sha} refs/heads/main"; exit 1
+          fi
+          echo "verified ${IMAGE}@${digest} <- ${SOURCE_REPO}@${sha} (signed by ${SIGNER_WORKFLOW}@refs/heads/main)"
+
+          {
+            echo "ready=true"
+            echo "sha=${sha}"
+            echo "digest=${digest}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open dev promotion PR
+        if: steps.find.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.find.outputs.sha }}
+          DIGEST: ${{ steps.find.outputs.digest }}
+          IMAGE_REGISTRY: ghcr.io
+        run: |
+          set -euo pipefail
+          current="$(sed -nE 's/^    digest: (sha256:[0-9a-f]{64})$/\1/p' apps/gitops-api/overlays/dev/kustomization.yaml)"
+          if [ "${current}" = "${DIGEST}" ]; then echo "dev already runs ${DIGEST}"; exit 0; fi
+          branch="ci/dev-${SHA:0:7}"
+          if gh pr list --head "${branch}" --state open --json number --jq 'length' | grep -qx '[1-9][0-9]*'; then
+            echo "PR for ${branch} already open"; exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "${branch}"
+          scripts/set-image.sh dev "${DIGEST}"
+          git commit -am "ci(dev): gitops-api@${DIGEST:0:19} built from gitops-api@${SHA:0:7}
+
+          Image: ${IMAGE}@${DIGEST}
+          Source: ${GITHUB_SERVER_URL}/${SOURCE_REPO}/commit/${SHA}
+          Provenance: verified (signer ${SIGNER_WORKFLOW}@refs/heads/main)
+          Proposed by: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          git push --force-with-lease origin "${branch}"
+
+          url="$(gh pr create --base main --head "${branch}" \
+            --title "ci(dev): gitops-api@${DIGEST:7:12} (${SHA:0:7})" \
+            --body "Automated dev promotion by the pull-based image updater.
+
+          - Image: \`${IMAGE}@${DIGEST}\`
+          - Built from: ${GITHUB_SERVER_URL}/${SOURCE_REPO}/commit/${SHA}
+          - Provenance: Sigstore attestation verified (signer \`${SIGNER_WORKFLOW}@refs/heads/main\`, commit \`${SHA:0:7}\`)
+          - Changes only \`apps/gitops-api/overlays/dev\`. Merges automatically once \`validate\` passes.")"
+
+          # Required check: GITHUB_TOKEN pushes don't trigger workflows, so start it explicitly.
+          gh workflow run validate.yml --ref "${branch}"
+          # dev is the only environment that merges without a human.
+          gh pr merge "${url}" --auto --merge
+          echo "Opened ${url}" | tee -a "$GITHUB_STEP_SUMMARY"

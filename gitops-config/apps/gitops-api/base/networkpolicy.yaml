@@ -1,0 +1,66 @@
+# Zero-trust within each environment namespace:
+#
+# 1. default-deny-all: no ingress or egress for ANY pod in the namespace.
+# 2. gitops-api-allow-http: the API accepts TCP/8080 only from same-namespace
+#    pods labelled `app.kubernetes.io/role: api-client`.
+# 3. api-client-egress: those client pods may reach the API pods and cluster DNS.
+#
+# The API itself has no egress at all (no DB, no outbound calls, no DNS).
+# Kubelet probes originate from the node and are not subject to these policies.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gitops-api-allow-http
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: gitops-api
+      app.kubernetes.io/component: api
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/role: api-client
+      ports:
+        - port: http
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-client-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/role: api-client
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: gitops-api
+              app.kubernetes.io/component: api
+      ports:
+        - port: 8080
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP

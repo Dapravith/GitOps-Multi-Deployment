@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sealed-secrets
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: v1.36
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+  annotations:
+    # The sealing private key lives in this namespace. Never let Argo CD delete
+    # it (prune or app deletion): losing the key makes every SealedSecret in Git
+    # undecryptable. Back it up (scripts/sealed-secrets-key.sh backup).
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false

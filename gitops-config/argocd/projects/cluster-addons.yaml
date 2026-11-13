@@ -1,0 +1,33 @@
+# Cluster add-ons (currently: Sealed Secrets controller). Every cluster-scoped
+# object is allowed BY NAME only (lesson from the phase-13 namespace probe).
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: cluster-addons
+  namespace: argocd
+spec:
+  description: Cluster add-ons with explicitly named cluster-scoped resources
+  sourceRepos:
+    - https://github.com/Dapravith/gitops-config.git
+    # TRANSITION: remove the lab Git server once every Application reads GitHub.
+    - http://git.lab-infra.svc.cluster.local/git/gitops-config.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: sealed-secrets
+  clusterResourceWhitelist:
+    - {group: "", kind: Namespace, name: sealed-secrets}
+    - {group: apiextensions.k8s.io, kind: CustomResourceDefinition, name: sealedsecrets.bitnami.com}
+    - {group: rbac.authorization.k8s.io, kind: ClusterRole, name: secrets-unsealer}
+    - {group: rbac.authorization.k8s.io, kind: ClusterRole, name: sealed-secrets-namespace-reader}
+    - {group: rbac.authorization.k8s.io, kind: ClusterRoleBinding, name: sealed-secrets-namespace-reader}
+  namespaceResourceWhitelist:
+    - {group: "", kind: Service}
+    - {group: "", kind: ServiceAccount}
+    - {group: apps, kind: Deployment}
+    - {group: rbac.authorization.k8s.io, kind: Role}
+    - {group: rbac.authorization.k8s.io, kind: RoleBinding}
+  orphanedResources:
+    warn: true
+    # The controller creates its own key Secrets; they are expected, not drift.
+    ignore:
+      - {group: "", kind: Secret}

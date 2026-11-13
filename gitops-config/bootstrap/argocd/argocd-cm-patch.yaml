@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+data:
+  # No webhooks from the local Git server: poll every 60s (default 180s).
+  timeout.reconciliation: 60s
+  # Status badges / anonymous access off.
+  users.anonymous.enabled: "false"
+  # Ignore noisy fields that other controllers mutate.
+  resource.compareoptions: |
+    ignoreAggregatedRoles: true
+  # Exclude objects Argo CD should never track.
+  resource.exclusions: |
+    - apiGroups: ["", "discovery.k8s.io"]
+      kinds: ["Endpoints", "EndpointSlice"]
+      clusters: ["*"]

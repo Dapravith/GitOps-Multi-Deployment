@@ -1,0 +1,35 @@
+# Applied by start.sh (not by Argo CD): maps the in-cluster name
+# git.lab-infra.svc.cluster.local to the Git container on the kind network.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab-infra
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: git
+  namespace: lab-infra
+spec:
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: git-1
+  namespace: lab-infra
+  labels:
+    kubernetes.io/service-name: git
+addressType: IPv4
+ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+endpoints:
+  - addresses: ["__GIT_IP__"]

@@ -1,0 +1,42 @@
+# RBAC that replaces upstream's cluster-wide `secrets-unsealer` ClusterRoleBinding.
+#
+# 1. Cluster-wide, the controller may only read Namespace objects.
+# 2. In its OWN namespace it gets `secrets-unsealer` (get/list/watch/create/
+#    update/delete Secrets): the sealing keys live here, and on startup it GETs
+#    `sealed-secrets-key` (upstream's key-admin Role only has create/list;
+#    found when the controller crash-looped with "cannot get resource secrets").
+# 3. Environment namespaces opt in via apps/gitops-api/components/sealed-secrets-access.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sealed-secrets-namespace-reader
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: sealed-secrets-namespace-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: sealed-secrets-namespace-reader
+subjects:
+  - kind: ServiceAccount
+    name: sealed-secrets-controller
+    namespace: sealed-secrets
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: sealed-secrets-controller-own-namespace
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: secrets-unsealer
+subjects:
+  - kind: ServiceAccount
+    name: sealed-secrets-controller
+    namespace: sealed-secrets

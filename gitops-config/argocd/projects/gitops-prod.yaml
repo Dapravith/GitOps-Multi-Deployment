@@ -1,0 +1,35 @@
+# production for gitops-api (manual sync only; see argocd-rbac-cm for who may sync)
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: gitops-prod
+  namespace: argocd
+spec:
+  description: production for gitops-api (manual sync only; see argocd-rbac-cm for who may sync)
+  sourceRepos:
+    - https://github.com/Dapravith/gitops-config.git
+    # TRANSITION: remove the lab Git server once every Application reads GitHub.
+    - http://git.lab-infra.svc.cluster.local/git/gitops-config.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: gitops-prod
+  # Only the kinds this app actually uses. Anything else fails the sync.
+  # Namespace is cluster-scoped: restrict it BY NAME, otherwise anyone who can
+  # merge could create arbitrary namespaces (found by the phase-13 probe).
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+      name: gitops-prod
+  namespaceResourceWhitelist:
+    - {group: "", kind: ConfigMap}
+    - {group: "", kind: Service}
+    - {group: "", kind: ServiceAccount}
+    - {group: apps, kind: Deployment}
+    - {group: networking.k8s.io, kind: NetworkPolicy}
+    - {group: policy, kind: PodDisruptionBudget}
+    - {group: bitnami.com, kind: SealedSecret}
+    # Only for components/sealed-secrets-access. AppProjects cannot pin namespaced
+    # kinds by name, so scripts/policy_check.py allows exactly that one RoleBinding.
+    - {group: rbac.authorization.k8s.io, kind: RoleBinding}
+  orphanedResources:
+    warn: true

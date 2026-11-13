@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitops-api
+spec:
+  replicas: 3
+  template:
+    spec:
+      topologySpreadConstraints:
+        # ScheduleAnyway: the lab has one node; on a real cluster use DoNotSchedule.
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: gitops-api
+              app.kubernetes.io/component: api
+      containers:
+        - name: api
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              memory: 128Mi

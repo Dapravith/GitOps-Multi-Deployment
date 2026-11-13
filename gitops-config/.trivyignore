@@ -1,0 +1,22 @@
+# Accepted Trivy misconfiguration findings. Each needs a reason; review when Trivy is bumped.
+
+# False positive: flags the ConfigMap key "PORT" (value 8080) as sensitive content.
+# The ConfigMap holds only APP_ENV, LOG_FORMAT, PORT, RUST_LOG. Secrets go in SealedSecrets.
+KSV-01010
+
+# ghcr.io is this project's registry; Trivy's built-in trusted list does not include it.
+# Images are additionally pinned by sha256 digest (enforced by scripts/policy_check.py).
+KSV-0125
+
+# Deliberate: CPU requests are set, CPU limits are not, to avoid CFS throttling of a
+# latency-sensitive HTTP service. Memory limits ARE set (enforced by policy_check.py).
+KSV-0011
+
+# Sealed Secrets controller (platform/sealed-secrets), inherent to its job:
+# KSV-0041: ClusterRole `secrets-unsealer` manages Secrets. It is NOT bound cluster-wide
+#   (upstream ClusterRoleBinding deleted); it is bound per namespace by
+#   components/sealed-secrets-access, and policy_check.py allows only that binding.
+KSV-0041
+# KSV-0113: Role `sealed-secrets-key-admin` manages Secrets in the controller's own
+#   namespace: that is where the sealing keys are stored.
+KSV-0113
