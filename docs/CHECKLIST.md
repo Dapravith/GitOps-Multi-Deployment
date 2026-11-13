@@ -28,6 +28,7 @@ An item is only ✅ when a real command output backs it up.
 - [ ] Re-run `scripts/sealed-secrets-key.sh backup` and `scripts/seal.sh --fetch-cert` after each 30-day key renewal
 - [ ] `argocd-initial-admin-secret` still present (unused; `--core` mode)
 - [ ] Shared Docker VM is CPU-starved by other workloads (load 20–80 on 8 vCPU)
+- [ ] Rust refactor in review: [gitops-api#1](https://github.com/Dapravith/gitops-api/pull/1) (contract unchanged except a JSON body on 405); optional `/items` in draft [#2](https://github.com/Dapravith/gitops-api/pull/2)
 - [ ] Fix image-updater (B5): (b) fetch-before-push fix in [gitops-config#4](https://github.com/Dapravith/gitops-config/pull/4) (open); (a) owner still decides repo setting vs GitHub App ([IMPLEMENTATION-GUIDE 8.3](design/IMPLEMENTATION-GUIDE.md#83-fix-the-image-updater-defect-b5))
 - [ ] Verify Argo CD against GitHub (PR #1) on a running cluster, then remove the `TRANSITION` lab-Git sources (guide 8.5)
 - [x] Lab running again (2026-11-13): all 5 Applications Synced/Healthy from GitHub `gitops-config@3b269a3`
@@ -50,13 +51,13 @@ From the security assessment of 2026-11-13. ✅ only with evidence.
 | SEC-002 | Last known-good state | ✅ | [baseline](evidence/2026-11-13-sec-phase1-baseline.md#sec-002-last-known-good-state); finding: running digest `de04de91…` is not in GHCR |
 | SEC-003 | Review PR #3 | ✅ | split: fix → [#4](https://github.com/Dapravith/gitops-config/pull/4), policy PR [#3](https://github.com/Dapravith/gitops-config/pull/3) closed after the owner chose approved PR → auto-sync for staging; nothing merged |
 | SEC-004 | Preserve production safety | ✅ | prod manual, enforced by `validate`; stays manual until SEC-006/009/016/022/026 pass |
-| SEC-005 | Protect main branches | 🟡 | rulesets drafted for review: [governance/](governance/README.md); not applied |
+| SEC-005 | Protect main branches | 🟡 | applied to all 3 repos as code (`governance/rulesets.sh`), no bypass: [evidence/2026-11-13-rulesets-refactor-promotion.md](evidence/2026-11-13-rulesets-refactor-promotion.md). 0 approvals until a 2nd reviewer exists; negative tests = SEC-009 |
 | SEC-006 | Independent PR reviews | ⬜ | waiting for the owner to add a second reviewer account; CODEOWNERS drafted |
-| SEC-007 | Required CI checks | ⬜ | gitops-config requires `validate`; gitops-api none |
+| SEC-007 | Required CI checks | ✅ | gitops-api: `test`, `scan-source`, `image`; gitops-config: `validate`; integration-pinned, strict: [evidence/2026-11-13-rulesets-refactor-promotion.md](evidence/2026-11-13-rulesets-refactor-promotion.md) |
 | SEC-008 | Restrict automation | ⬜ | |
 | SEC-009 | Verify governance controls | ⬜ | needs SEC-005–008 |
-| SEC-010 | Fix image-updater | 🟡 | branch handling in #4; PR-creation permission needs SEC-011 |
-| SEC-011 | Scoped automation credentials | ⬜ | owner creates the GitHub App ([settings](governance/README.md#3-github-app-for-the-image-updater-sec-010-sec-011)) |
+| SEC-010 | Fix image-updater | 🟡 | branch handling in #4; GitHub App wiring in [gitops-config#5](https://github.com/Dapravith/gitops-config/pull/5); owner creates App, then verify a real run |
+| SEC-011 | Scoped automation credentials | 🟡 | workflow side done in #5 (`GITHUB_TOKEN` read-only, App token scoped to gitops-config); owner creates the App ([settings](governance/README.md#3-github-app-for-the-image-updater-sec-010-sec-011)) |
 | SEC-012 | Enforce PR review policy | ⬜ | bot auto-merge still on |
 | SEC-013 | Restrict image publication | ⬜ | finding: `workflow_dispatch` on any branch publishes + signs ([governance §5](governance/README.md#5-related-finding-for-phase-3-sec-013)) |
 | SEC-014 | Branch-independent promotion validation | ⬜ | |
