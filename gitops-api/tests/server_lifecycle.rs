@@ -1,9 +1,11 @@
 //! Real TCP server: serve, flip readiness, drain, close the listener.
 
+mod common;
+
 use std::time::Duration;
 
+use gitops_api::HttpLimits;
 use gitops_api::bootstrap::serve;
-use gitops_api::{AppState, HttpLimits};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::oneshot;
@@ -22,7 +24,7 @@ async fn raw_get(addr: std::net::SocketAddr, path: &str) -> String {
 async fn real_server_serves_and_shuts_down_gracefully() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
-    let state = AppState::new("test");
+    let state = common::state("test");
     let (tx, rx) = oneshot::channel::<()>();
 
     let server = tokio::spawn(serve(

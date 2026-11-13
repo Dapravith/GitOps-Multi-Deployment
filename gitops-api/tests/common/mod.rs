@@ -2,9 +2,15 @@
 //! separate crate and uses a different subset, hence the `dead_code` allow.
 #![allow(dead_code)]
 
+use std::sync::Arc;
+
 use axum::Router;
 use axum::body::Body;
 use axum::http::{HeaderMap, Request, StatusCode};
+use gitops_api::modules::items::application::ItemService;
+use gitops_api::modules::items::application::ports::ItemRepository;
+use gitops_api::modules::items::infrastructure::InMemoryItemRepository;
+use gitops_api::platform::security::api_key::ApiKeys;
 use gitops_api::{AppState, HttpLimits, app};
 use http_body_util::BodyExt;
 use serde_json::Value;
@@ -36,8 +42,24 @@ pub fn app(state: AppState) -> Router {
     app::router(state, &HttpLimits::default())
 }
 
+/// The only key the test state accepts.
+pub const TEST_KEY: &str = "test-key-0123456789abcdef0123456789abcdef";
+
+/// State with the in-memory item store and [`TEST_KEY`]; not ready.
+pub fn state(env: &str) -> AppState {
+    state_with(env, Arc::new(InMemoryItemRepository::new(100)))
+}
+
+pub fn state_with(env: &str, repo: Arc<dyn ItemRepository>) -> AppState {
+    AppState::new(
+        env,
+        ApiKeys::parse(TEST_KEY).unwrap(),
+        ItemService::new(repo),
+    )
+}
+
 pub fn ready_state(env: &str) -> AppState {
-    let state = AppState::new(env);
+    let state = state(env);
     state.set_ready(true);
     state
 }

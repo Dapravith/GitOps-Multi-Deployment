@@ -36,9 +36,10 @@ dependencies, attack surface and code to maintain with nothing exercising it:
 
 | Item | Add it when | Notes for whoever adds it |
 |---|---|---|
+| ~~auth~~ | built: API-key bearer auth (`platform/security/api_key.rs`, `app/middleware/authentication.rs`), used by `items` | JWT remains deferred, see below |
 | `modules/users/`, `migrations/` | a real user feature is specified | Use `sqlx` with compile-time-checked queries; run migrations as a separate Job/init step, not on every pod start |
 | `platform/persistence/pool.rs` | the first module needs a DB | Pool built in `dependencies.rs`; `/ready` must then check it; credentials via SealedSecret, never env defaults |
-| `app/middleware/authentication.rs`, `platform/security/{jwt,identity,authorization}.rs` | there is an identity provider and a protected route | Verify JWTs against the IdP's JWKS (pin `alg`, check `iss`/`aud`/`exp`); expose an `Identity` extractor; apply with `route_layer` on protected routers only. `/health`, `/ready`, `/version` stay public |
+| `platform/security/{jwt,identity,authorization}.rs` | there is an identity provider, or callers need different permissions | Verify JWTs against the IdP's JWKS (pin `alg`, check `iss`/`aud`/`exp`); expose an `Identity` extractor; apply with `route_layer` on protected routers only. `/health`, `/ready`, `/version` stay public |
 | `shared/identifiers.rs` | two modules share an id type | Newtypes over `Uuid` with `serde(transparent)` |
 | `benches/` | there is a hot path worth measuring | `criterion` |
 

@@ -10,7 +10,7 @@ use crate::modules;
 /// Assemble the full application: module routes, JSON fallbacks, then the
 /// cross-cutting middleware stack (which also wraps the fallbacks).
 pub fn router(state: AppState, limits: &HttpLimits) -> Router {
-    let routes = modules::routes()
+    let routes = modules::routes(&state)
         .fallback(not_found)
         .method_not_allowed_fallback(method_not_allowed);
 

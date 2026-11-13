@@ -19,5 +19,5 @@ exec docker run --rm ${TTY:+-it} \
   -v gitops-api-cargo-registry:/usr/local/cargo/registry \
   -v gitops-api-target:/target \
   -e CARGO_TARGET_DIR=/target \
-  -e RUST_LOG -e LOG_FORMAT -e APP_ENV -e PORT -e REQUEST_TIMEOUT_SECS -e MAX_REQUEST_BODY_BYTES \
+  -e RUST_LOG -e LOG_FORMAT -e APP_ENV -e PORT -e REQUEST_TIMEOUT_SECS -e MAX_REQUEST_BODY_BYTES -e API_KEYS \
   "${RUST_IMAGE}" cargo "$@"

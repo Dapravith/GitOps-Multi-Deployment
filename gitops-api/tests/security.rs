@@ -9,8 +9,8 @@ use axum::body::{Body, Bytes};
 use axum::http::{Request, StatusCode};
 use axum::routing::{get as get_route, post};
 use common::{app, get, ready_state, send};
+use gitops_api::HttpLimits;
 use gitops_api::app::middleware;
-use gitops_api::{AppState, HttpLimits};
 
 const SECURITY_HEADERS: [(&str, &str); 6] = [
     ("x-content-type-options", "nosniff"),
@@ -47,7 +47,7 @@ fn probe_app(limits: HttpLimits) -> Router {
 #[tokio::test]
 async fn security_headers_on_success_and_error_responses() {
     assert_security_headers(&get(app(ready_state("test")), "/health").await);
-    assert_security_headers(&get(app(AppState::new("test")), "/ready").await);
+    assert_security_headers(&get(app(common::state("test")), "/ready").await);
     assert_security_headers(&get(app(ready_state("test")), "/nope").await);
 }
 

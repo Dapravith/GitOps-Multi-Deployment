@@ -4,5 +4,6 @@
 //! can be reused by a second binary (a worker, a migration job) unchanged.
 
 pub mod build_info;
+pub mod security;
 pub mod shutdown;
 pub mod telemetry;
