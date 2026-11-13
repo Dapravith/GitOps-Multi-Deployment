@@ -20,12 +20,10 @@ spec:
     namespace: gitops-staging
   revisionHistoryLimit: 10
   syncPolicy:
-    # Git is the source of truth: apply on every commit, delete what Git
-    # removed, revert manual drift.
-    automated:
-      prune: true
-      selfHeal: true
-      allowEmpty: false
+    # Manual approval gate: no `automated` block. Merging the promotion PR only
+    # makes this Application OutOfSync; a human reviews `argocd app diff` and
+    # runs `argocd app sync gitops-api-staging` (see docs/PROMOTION.md).
+    # Consequence: drift is reported (OutOfSync), not reverted, as in prod.
     syncOptions:
       - ServerSideApply=true
       - PruneLast=true

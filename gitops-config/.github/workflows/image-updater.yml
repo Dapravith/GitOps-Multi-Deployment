@@ -104,6 +104,12 @@ jobs:
           Source: ${GITHUB_SERVER_URL}/${SOURCE_REPO}/commit/${SHA}
           Provenance: verified (signer ${SIGNER_WORKFLOW}@refs/heads/main)
           Proposed by: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          # A previous run may have left the bot branch on the remote without a PR
+          # (B5). Fetch it so --force-with-lease has a ref to compare against;
+          # the branch is then repaired instead of failing the run.
+          if git ls-remote --exit-code --heads origin "${branch}" >/dev/null; then
+            git fetch --no-tags origin "+refs/heads/${branch}:refs/remotes/origin/${branch}"
+          fi
           git push --force-with-lease origin "${branch}"
 
           url="$(gh pr create --base main --head "${branch}" \

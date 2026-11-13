@@ -10,7 +10,7 @@ bootstrap/argocd/                     one-time Argo CD v3.5.7 install (checksum 
 apps/gitops-api/base/                 shared manifests: Deployment, Service, SA, NetworkPolicies, ConfigMap
 apps/gitops-api/components/pdb/       PodDisruptionBudget, used by staging + prod
 apps/gitops-api/overlays/dev/         auto-sync; image digest bumped by CI PR
-apps/gitops-api/overlays/staging/     auto-sync; digest promoted from dev via reviewed PR
+apps/gitops-api/overlays/staging/     MANUAL sync (approval gate); digest promoted from dev via reviewed PR
 apps/gitops-api/overlays/prod/        MANUAL sync; digest promoted from staging via reviewed PR
 argocd/projects/                      default (locked), platform, gitops-nonprod, gitops-prod
 argocd/applications/                  root (app-of-apps) + one Application per environment

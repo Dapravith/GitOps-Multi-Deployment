@@ -16,10 +16,10 @@ An item is only ✅ when a real command output backs it up.
 | 8 | GitHub Actions: test, scan, build, push immutable images | 🟡 | [evidence/2026-11-13-design-baseline.md](evidence/2026-11-13-design-baseline.md) — both repos public; `ci` green on `28ae24b`; digest `sha256:910d9b7b…` published with verified provenance (B3, B4). **image-updater failing** since 2026-11-12 16:46Z (B5): repo setting blocks PR creation, then a stale `ci/dev-28ae24b` branch breaks `--force-with-lease`. `gitops-api` main unprotected (B6) |
 | 9 | PR-based image promotion | 🟡 | `set-image.sh` + gated `promote.sh` verified locally with branch+merge as a simulated PR ([evidence/phase-10-12.md](evidence/phase-10-12.md)); real GitHub PRs blocked by the image-updater defect (B5) |
 | 10 | Dev auto-sync | ✅ | [evidence/phase-10-12.md](evidence/phase-10-12.md) — commit→sync 69 s detect + 5 s apply; 4 drift types self-healed in 1.4–24.8 s |
-| 11 | Staging reviewed promotion | 🟡 | [evidence/phase-10-12.md](evidence/phase-10-12.md) — gated promotion, 1-line diff, 1905 requests / 0 failed during rollout. Mandatory reviewer approval **not** enforced: GitHub ruleset requires PR + `validate` but 0 approvals (B6); a single maintainer can't self-approve |
+| 11 | Staging reviewed promotion | 🟡 | [evidence/phase-10-12.md](evidence/phase-10-12.md) — gated promotion, 1-line diff, 1905 requests / 0 failed during rollout. 2026-11-13: approval gate changed to **manual sync** (no `automated` on `gitops-api-staging`, enforced by validate.sh, negative test fails as intended). Committed locally (`gitops-config` `3beaede`, branch `feat/staging-manual-gate`); not pushed or verified on the cluster yet |
 | 12 | Prod manual sync | ✅ | [evidence/phase-10-12.md](evidence/phase-10-12.md) — no sync for 4 min after merge; you authorized; manual sync 3 s; same digest in all 3 envs; prod drift reported, not reverted |
 | 13 | Drift, rollback, security, failure tests | ✅ | [evidence/phase-13.md](evidence/phase-13.md) — 13 tests; 4 gaps found and fixed (namespace allow-list, unpublished digest, invalid config, manifest scan); rollback 20 s / 0 failed; workloads unaffected by Git and Argo CD outages. Not tested: prod failures |
-| 14 | Runbooks, PROMOTION.md, audit report | ⬜ | |
+| 14 | Runbooks, PROMOTION.md, audit report | 🟡 | PROMOTION.md rewritten for the GitHub PR flow, staging/prod sync gates, rollback, drift, failed-sync triage (`3beaede`). Audit report not started |
 
 ## Known open items
 
@@ -28,9 +28,10 @@ An item is only ✅ when a real command output backs it up.
 - [ ] Re-run `scripts/sealed-secrets-key.sh backup` and `scripts/seal.sh --fetch-cert` after each 30-day key renewal
 - [ ] `argocd-initial-admin-secret` still present (unused; `--core` mode)
 - [ ] Shared Docker VM is CPU-starved by other workloads (load 20–80 on 8 vCPU)
-- [ ] Fix image-updater (B5): owner decides repo setting vs GitHub App; workflow fetch-before-push fix in [IMPLEMENTATION-GUIDE 8.3](design/IMPLEMENTATION-GUIDE.md#83-fix-the-image-updater-defect-b5)
+- [ ] Fix image-updater (B5): (b) fetch-before-push fix committed locally (`gitops-config` `3beaede`); (a) owner still decides repo setting vs GitHub App ([IMPLEMENTATION-GUIDE 8.3](design/IMPLEMENTATION-GUIDE.md#83-fix-the-image-updater-defect-b5))
 - [ ] Verify Argo CD against GitHub (PR #1) on a running cluster, then remove the `TRANSITION` lab-Git sources (guide 8.5)
-- [ ] Lab stopped on 2026-11-13 (Docker daemon down, B1)
+- [x] Lab running again (2026-11-13): all 5 Applications Synced/Healthy from GitHub `gitops-config@3b269a3`
+- [ ] Umbrella repo `GitOps-Multi-Deployment` (commit `48a786d`) is docs/workspace only. CI and Argo CD stay on the two repos `gitops-api` + `gitops-config` (decided 2026-11-13); keep the folders in sync with them
 
 ## Open prerequisites
 
