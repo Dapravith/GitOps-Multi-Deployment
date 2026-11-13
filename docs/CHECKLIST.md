@@ -48,17 +48,17 @@ From the security assessment of 2026-11-13. ✅ only with evidence.
 |---|---|---|---|
 | SEC-001 | Repository ownership | ✅ | [sec-phase1-baseline](evidence/2026-11-13-sec-phase1-baseline.md#sec-001-repository-ownership); umbrella resynced to `gitops-api@28ae24b` / `gitops-config@3b269a3` |
 | SEC-002 | Last known-good state | ✅ | [baseline](evidence/2026-11-13-sec-phase1-baseline.md#sec-002-last-known-good-state); finding: running digest `de04de91…` is not in GHCR |
-| SEC-003 | Review PR #3 | ✅ | split: fix → [#4](https://github.com/Dapravith/gitops-config/pull/4), policy → draft [#3](https://github.com/Dapravith/gitops-config/pull/3); nothing merged |
+| SEC-003 | Review PR #3 | ✅ | split: fix → [#4](https://github.com/Dapravith/gitops-config/pull/4), policy PR [#3](https://github.com/Dapravith/gitops-config/pull/3) closed after the owner chose approved PR → auto-sync for staging; nothing merged |
 | SEC-004 | Preserve production safety | ✅ | prod manual, enforced by `validate`; stays manual until SEC-006/009/016/022/026 pass |
-| SEC-005 | Protect main branches | ⬜ | gitops-api + umbrella unprotected |
-| SEC-006 | Independent PR reviews | ⬜ | **blocked**: one collaborator; needs a second reviewer account |
+| SEC-005 | Protect main branches | 🟡 | rulesets drafted for review: [governance/](governance/README.md); not applied |
+| SEC-006 | Independent PR reviews | ⬜ | waiting for the owner to add a second reviewer account; CODEOWNERS drafted |
 | SEC-007 | Required CI checks | ⬜ | gitops-config requires `validate`; gitops-api none |
 | SEC-008 | Restrict automation | ⬜ | |
 | SEC-009 | Verify governance controls | ⬜ | needs SEC-005–008 |
 | SEC-010 | Fix image-updater | 🟡 | branch handling in #4; PR-creation permission needs SEC-011 |
-| SEC-011 | Scoped automation credentials | ⬜ | **blocked**: owner creates the GitHub App |
+| SEC-011 | Scoped automation credentials | ⬜ | owner creates the GitHub App ([settings](governance/README.md#3-github-app-for-the-image-updater-sec-010-sec-011)) |
 | SEC-012 | Enforce PR review policy | ⬜ | bot auto-merge still on |
-| SEC-013 | Restrict image publication | ⬜ | |
+| SEC-013 | Restrict image publication | ⬜ | finding: `workflow_dispatch` on any branch publishes + signs ([governance §5](governance/README.md#5-related-finding-for-phase-3-sec-013)) |
 | SEC-014 | Branch-independent promotion validation | ⬜ | |
 | SEC-015 | End-to-end dev pipeline | ⬜ | needs SEC-010/011 |
 | SEC-016 | Prod Sealed Secrets | ⬜ | needs a prod sync (ask at the time) |
@@ -68,7 +68,7 @@ From the security assessment of 2026-11-13. ✅ only with evidence.
 | SEC-020 | Argo CD authorization | ⬜ | |
 | SEC-021 | Remove obsolete permissions | ⬜ | |
 | SEC-022 | Real image availability | ⬜ | all envs on lab-only `de04de91…` |
-| SEC-023 | Staging promotion test | ⬜ | staging model decision pending (#3) |
+| SEC-023 | Staging promotion test | ⬜ | model decided: approved PR → auto-sync; needs SEC-006 |
 | SEC-024 | Safe prod auto-sync | ⬜ | last; after all safeguards |
 | SEC-025 | Critical resource deletion | ⬜ | |
 | SEC-026 | Git-based rollback | ⬜ | |

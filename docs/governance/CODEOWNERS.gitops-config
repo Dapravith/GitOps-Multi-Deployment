@@ -1,0 +1,13 @@
+# gitops-config: deployed state. Every path needs a code-owner approval.
+# GitHub never counts an author's own approval, so each PR needs the OTHER owner.
+# The image-updater GitHub App is deliberately NOT an owner: its PRs need a human.
+*                                   @Dapravith @REVIEWER
+
+# Highest risk, listed explicitly so the intent survives later edits to the line above.
+/argocd/                            @Dapravith @REVIEWER
+/apps/gitops-api/overlays/prod/     @Dapravith @REVIEWER
+/platform/                          @Dapravith @REVIEWER
+/sealed-secrets/                    @Dapravith @REVIEWER
+/scripts/                           @Dapravith @REVIEWER
+/.github/                           @Dapravith @REVIEWER
+/.github/CODEOWNERS                 @Dapravith @REVIEWER

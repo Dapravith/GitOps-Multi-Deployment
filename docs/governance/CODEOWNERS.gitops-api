@@ -1,0 +1,7 @@
+# gitops-api: source + the workflow that publishes and signs release images.
+*                                   @Dapravith @REVIEWER
+/.github/                           @Dapravith @REVIEWER
+/Dockerfile                         @Dapravith @REVIEWER
+/Cargo.lock                         @Dapravith @REVIEWER
+/rust-toolchain.toml                @Dapravith @REVIEWER
+/.github/CODEOWNERS                 @Dapravith @REVIEWER
