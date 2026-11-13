@@ -50,6 +50,14 @@
       "value": ""
     },
     {
+      "key": "wrongApiKey",
+      "value": ""
+    },
+    {
+      "key": "unknownId",
+      "value": ""
+    },
+    {
       "key": "longName",
       "value": ""
     },
@@ -332,6 +340,17 @@
           "name": "Wrong key -> 401",
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Generated at run time so no token-like literal is stored in the collection",
+                  "// (Postman's secret scanner would flag one on import).",
+                  "pm.collectionVariables.set(\"wrongApiKey\", \"wrong-\" + require(\"uuid\").v4());"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -363,7 +382,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "wrong-key-0123456789abcdef0123456789abcdef",
+                  "value": "{{wrongApiKey}}",
                   "type": "string"
                 }
               ]
@@ -1340,6 +1359,15 @@
           "name": "Unknown id -> 404",
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"unknownId\", require(\"uuid\").v4());"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -1357,13 +1385,13 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/items/01e5f69e-ea87-4cda-8421-0663fb93b094",
+              "raw": "{{baseUrl}}/items/{{unknownId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "items",
-                "01e5f69e-ea87-4cda-8421-0663fb93b094"
+                "{{unknownId}}"
               ]
             }
           }

@@ -1,0 +1,9 @@
+# Use this workspace to collaborate
+workspace:
+  id: e2ecb477-06c3-4230-a798-1fe293192243
+
+localResources:
+  collections:
+    - ../gitops-api.postman_collection.json
+  environments:
+    - ../gitops-api.postman_environment.json
