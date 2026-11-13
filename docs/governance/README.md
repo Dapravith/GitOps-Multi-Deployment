@@ -2,8 +2,13 @@
 
 **Status: proposal for owner review. Nothing in this folder has been applied to GitHub.**
 
-Decisions (2026-11-13): a second reviewer account will be added; staging becomes
-"approved PR → Argo CD auto-sync"; a GitHub App replaces the default token for the image-updater.
+Decisions (2026-11-13): staging becomes "approved PR → Argo CD auto-sync"; a GitHub App
+replaces the default token for the image-updater. **Reviews (revised 2026-11-13):** one account
+for now, so rules are applied as code with a required PR + checks and **0 required approvals**;
+the owner reviews and merges each PR. Raise to 1 approval + code owners when a second reviewer
+exists (SEC-006 stays open until then).
+
+Apply / check drift: `./rulesets.sh plan` (read-only, exit 1 on drift) and `./rulesets.sh apply`.
 
 ## 1. What changes
 
@@ -11,7 +16,7 @@ Decisions (2026-11-13): a second reviewer account will be added; staging becomes
 |---|---|---|---|
 | Today | nothing | PR + `validate`, **0 approvals** | nothing |
 | PR required | yes | yes | yes |
-| Approvals | **1**, code owner, not the last pusher | **1**, code owner, not the last pusher | **1**, code owner |
+| Approvals | **0** for now (owner reviews + merges); later 1, code owner | same | same |
 | Stale approval dismissed on push | yes | yes | yes |
 | Required checks (GitHub Actions only) | `test`, `scan-source`, `image` | `validate` | none (no CI) |
 | Branch must be up to date | yes | yes | n/a |
@@ -70,7 +75,8 @@ Then: generate a private key (downloads a `.pem`), click **Install App**, choose
 repositories → gitops-config**, and store:
 
 ```bash
-gh variable set IMAGE_UPDATER_APP_ID -R Dapravith/gitops-config --body <App ID>
+# Client ID is shown at the top of the App settings page (starts with "Iv").
+gh variable set IMAGE_UPDATER_CLIENT_ID -R Dapravith/gitops-config --body <Client ID>
 gh secret set IMAGE_UPDATER_APP_KEY -R Dapravith/gitops-config < ~/Downloads/<app>.private-key.pem
 ```
 
