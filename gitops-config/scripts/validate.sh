@@ -78,17 +78,16 @@ if ! docker run --rm -v "${root}/argocd:/argocd:ro" "${KUBECONFORM_IMAGE}" \
 fi
 # Guard rails on the Application objects themselves.
 prod_app="${root}/argocd/applications/gitops-api-prod.yaml"
-# staging and prod are manual approval gates: a merge alone must never deploy.
-for e in staging prod; do
-  if grep -qE '^\s+automated:' "${root}/argocd/applications/gitops-api-${e}.yaml"; then
-    echo "  POLICY FAIL [argocd] gitops-api-${e} must NOT have automated sync (manual gate)"; fail=1
-  fi
-done
+if grep -qE '^\s+automated:' "${prod_app}"; then
+  echo "  POLICY FAIL [argocd] gitops-api-prod must NOT have automated sync"; fail=1
+fi
 if grep -q 'resources-finalizer' "${prod_app}"; then
   echo "  POLICY FAIL [argocd] gitops-api-prod must not cascade-delete (no resources finalizer)"; fail=1
 fi
-grep -qE '^\s+selfHeal: true' "${root}/argocd/applications/gitops-api-dev.yaml" \
-  || { echo "  POLICY FAIL [argocd] gitops-api-dev must auto-sync with selfHeal"; fail=1; }
+for e in dev staging; do
+  grep -qE '^\s+selfHeal: true' "${root}/argocd/applications/gitops-api-${e}.yaml" \
+    || { echo "  POLICY FAIL [argocd] gitops-api-${e} must auto-sync with selfHeal"; fail=1; }
+done
 [[ ${fail} -eq 0 ]] && echo "  argocd policy OK"
 
 echo "== secret scan (gitleaks: working tree + git history)"

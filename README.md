@@ -1,5 +1,7 @@
 # GitOps Multi-Environment Deployment
 
+> **Repository ownership (SEC-001):** source lives in `Dapravith/gitops-api`, deployed state in `Dapravith/gitops-config`. This umbrella repo is documentation only; its `gitops-api/` and `gitops-config/` folders are read-only snapshots synced from those repos' `main`. Do not edit them here.
+
 > A Rust service delivered to **dev → staging → prod** with Argo CD. Every change is a Git commit, every
 > environment runs the same signed image digest, and every claim is backed by captured evidence.
 
