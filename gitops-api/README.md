@@ -19,28 +19,40 @@ See [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) for the full picture.
 | `APP_ENV` | `local` | `[a-z0-9-]+` |
 | `LOG_FORMAT` | `json` | `json` or `pretty` |
 | `RUST_LOG` | `info` | standard `EnvFilter` syntax |
+| `REQUEST_TIMEOUT_SECS` | `10` | 1–60; slower handlers get 503 |
+| `MAX_REQUEST_BODY_BYTES` | `65536` | 1–16 MiB; larger bodies get 413 |
+
+See [`.env.example`](.env.example).
 
 ## Source layout
 
 ```
 src/
-├── main.rs         entry point: load config, init logging, run, map to exit code
-├── lib.rs          module map and public re-exports
-├── config.rs       environment variables → validated Config
-├── telemetry.rs    global tracing subscriber
-├── server.rs       bind, serve, readiness on/off, drain
-├── shutdown.rs     wait for SIGTERM / SIGINT
-├── state.rs        AppState shared by handlers
-├── build_info.rs   compile-time name / version / git_sha
-├── error.rs        top-level Error returned to main
-└── routes/
-    ├── mod.rs      router assembly, trace layer, 404 fallback
-    ├── health.rs   /health, /ready
-    ├── version.rs  /version
-    └── response.rs shared response bodies
+├── main.rs                 calls bootstrap::init, then bootstrap::run
+├── lib.rs                  layer map and public re-exports
+├── bootstrap/              config → wiring → bind / serve / drain
+│   ├── config.rs           environment variables → validated Config
+│   ├── dependencies.rs     composition root: Config → AppState
+│   ├── server.rs           bind, serve, readiness on/off, drain
+│   └── error.rs            startup / fatal Error
+├── app/                    HTTP kernel shared by every module
+│   ├── router.rs           mounts modules, JSON 404/405 fallbacks, middleware
+│   ├── state.rs            AppState (dependency container)
+│   ├── error.rs            ApiError → status + {"status": code}
+│   ├── response.rs         StatusBody
+│   └── middleware/         request id, security headers, timeout, body limit, trace
+├── modules/                one directory per feature
+│   └── system/             /health, /ready, /version
+└── platform/               no deps on the rest of the crate
+    ├── telemetry.rs        tracing subscriber, LogFormat
+    ├── shutdown.rs         SIGTERM / SIGINT
+    └── build_info.rs       compile-time name / version / git_sha
 ```
 
-To add an endpoint, create `routes/<resource>.rs` with a `router()` function and merge it in `routes/mod.rs`.
+To add a feature, create `modules/<name>/` exposing `routes()` and merge it in `modules/mod.rs`.
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) explains the layers and how a stateful module grows;
+[`docs/ADR/0001`](docs/ADR/0001-modular-layered-architecture.md) records why, and what was left out on purpose.
+Security controls: [`docs/SECURITY.md`](docs/SECURITY.md). HTTP contract: [`docs/API-CONTRACT.md`](docs/API-CONTRACT.md).
 
 ## Develop
 

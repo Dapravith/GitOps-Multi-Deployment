@@ -1,7 +1,7 @@
 //! Termination signals: SIGTERM (Kubernetes) or SIGINT (Ctrl-C).
 //!
 //! This module only *waits*; what happens next (flipping readiness, draining)
-//! is decided by [`crate::server::serve`].
+//! is decided by [`crate::bootstrap::serve`].
 
 use std::future::pending;
 

@@ -19,6 +19,7 @@
 - [Repository layout](#repository-layout)
 - [Environments](#environments)
 - [Getting started](#getting-started)
+- [Kubernetes implementation guide](#kubernetes-implementation-guide)
 - [Run the service](#run-the-service)
 - [Release workflow](#release-workflow)
 - [Security model](#security-model)
@@ -139,6 +140,147 @@ scripts/validate.sh                     # render → schema → policy → misco
 ```
 
 Step-by-step instructions, with the expected output for each step: [Implementation Guide](docs/design/IMPLEMENTATION-GUIDE.md).
+
+## Kubernetes implementation guide
+
+How the service runs on Kubernetes, in the order you build it. Each step maps to a phase in the
+[Implementation Guide](docs/design/IMPLEMENTATION-GUIDE.md), which also lists the evidence to capture.
+All paths are relative to `gitops-config/`.
+
+**Ground rules**
+
+1. Always use the lab kubeconfig (`export KUBECONFIG="$HOME/.kube/gitops-lab.kubeconfig"`). Never change the default context.
+2. After bootstrap, never `kubectl apply` into `gitops-dev`, `gitops-staging` or `gitops-prod`. Commit to Git and let Argo CD apply it.
+3. Every prod sync, and every change on GitHub, needs the owner's explicit OK.
+
+### Step 1: Cluster (phase 3)
+
+```bash
+bootstrap/kind/create-cluster.sh
+kubectl get nodes -o wide               # expect: gitops-lab-control-plane  Ready  v1.36.4
+```
+
+| Setting | Value | Where |
+|---|---|---|
+| Topology | single schedulable control-plane node (`gitops-lab/role: all-in-one`) | `bootstrap/kind/kind-config.yaml` |
+| Node image | `kindest/node:v1.36.4`, pinned by digest | same |
+| API server | `127.0.0.1`, random port: reachable from this machine only | same |
+| Registry | `gitops-lab-registry` on `127.0.0.1:5001`, configured in containerd as a **mirror** for `ghcr.io` | `bootstrap/kind/create-cluster.sh` |
+
+The mirror lets manifests always reference real `ghcr.io/...@sha256:` digests. Because a digest identifies the
+content, the mirror cannot serve different bytes under it.
+
+**Verify:** in a throwaway namespace labelled `pod-security.kubernetes.io/enforce: restricted`, a default pod is rejected and a
+hardened pod is admitted. Delete the namespace afterwards.
+
+### Step 2: Desired state with Kustomize (phase 4)
+
+```
+apps/gitops-api/
+├── base/                      # environment-agnostic; must not reference a namespace
+│   ├── serviceaccount.yaml    #   automountServiceAccountToken: false
+│   ├── deployment.yaml        #   probes, preStop, securityContext, 30s grace period
+│   ├── service.yaml           #   ClusterIP :80 → :8080
+│   └── networkpolicy.yaml     #   default-deny + allow from api-client only
+├── components/
+│   ├── pdb/                   # PodDisruptionBudget (staging, prod)
+│   └── sealed-secrets-access/ # RoleBinding for the per-namespace controller
+└── overlays/{dev,staging,prod}/
+    ├── namespace.yaml         # PSA restricted (enforce, audit, warn), pinned to v1.36
+    ├── kustomization.yaml     # APP_ENV, RUST_LOG, image digest
+    └── deployment-patch.yaml  # replicas, resources, topology spread
+```
+
+Conventions:
+
+- **The image digest is the only per-release field.** Every overlay maps the placeholder `gitops-api` to
+  `ghcr.io/dapravith/gitops-api` with a `digest:`. `validate.sh` fails any rendered image without an `@sha256` digest.
+- **Config changes roll the pods.** `configMapGenerator` adds a content hash to the ConfigMap name, so any change
+  creates a new name and the Deployment rolls. A `git revert` brings back the previous name.
+- **Selectors are written by hand.** `labels` uses `includeSelectors: false`, because Deployment selectors are
+  immutable and injected labels would widen NetworkPolicy selectors.
+
+```bash
+scripts/validate.sh                     # render → kubeconform (K8s 1.36, strict) → policy → Trivy → gitleaks
+                                        # expect: ALL OVERLAYS VALID, exit 0
+kubectl kustomize apps/gitops-api/overlays/prod | less    # inspect one environment
+```
+
+### Step 3: Workload hardening (built into the base)
+
+| Layer | Control |
+|---|---|
+| Namespace | Pod Security `restricted`, enforced in every environment |
+| Pod | non-root UID/GID 65532, `seccompProfile: RuntimeDefault`, no ServiceAccount token |
+| Container | read-only root filesystem, `allowPrivilegeEscalation: false`, all capabilities dropped |
+| Probes | `startupProbe` and `livenessProbe` on `/health`; `readinessProbe` on `/ready` |
+| Shutdown | a native `preStop: sleep 5s` (no shell needed in distroless) lets endpoint removal propagate before SIGTERM; then `/ready` returns 503 while in-flight requests drain, within a 30 s grace period |
+| Network | `default-deny-all` for ingress and egress. Port 8080 accepts traffic only from pods labelled `app.kubernetes.io/role: api-client` in the same namespace. The API itself has no egress |
+| Availability | staging: 2 replicas + PDB; prod: 3 replicas + PDB + `topologySpreadConstraints` |
+
+> In prod, `whenUnsatisfiable: ScheduleAnyway` is a lab concession: the lab has one node. On a multi-node cluster,
+> change it to `DoNotSchedule`.
+
+### Step 4: Argo CD (phase 5)
+
+```bash
+bootstrap/argocd/install.sh             # verifies the upstream sha256, applies, then creates root
+scripts/argocd.sh app list
+# expect: root, sealed-secrets, gitops-api-dev, gitops-api-staging   Synced / Healthy
+#         gitops-api-prod                                            OutOfSync (manual sync only)
+```
+
+- **App-of-apps.** `argocd/applications/root.yaml` manages every AppProject and Application under `argocd/`, including itself.
+- **Projects limit the blast radius.** The `default` project is locked. `gitops-nonprod` and `gitops-prod` allow only their own
+  namespaces and a fixed list of resource kinds. `platform` and `cluster-addons` hold cluster add-ons.
+- **Sync options.** dev and staging use `automated: {prune, selfHeal}`, `ServerSideApply`, `PruneLast`, `FailOnSharedResource`
+  and a 3-step retry with backoff. prod has no `automated` block.
+- **Finalizer.** `resources-finalizer.argocd.argoproj.io`: deleting an Application also deletes its workloads.
+
+**Verify:** apply a throwaway Application in the `default` project. Expect `InvalidSpecError` for both its repo and its destination.
+
+### Step 5: Secrets (phase 6)
+
+Kubernetes `Secret`s never go into Git. Seal them offline with the public certificate (`sealed-secrets/pub-cert.pem`) and
+commit the `SealedSecret`. The controller in the cluster decrypts it.
+
+```bash
+printf '%s' "$VALUE" | scripts/seal.sh <env> <secret-name> <key>   # plaintext from stdin only
+#   → apps/gitops-api/overlays/<env>/sealedsecret-<secret-name>.yaml (strict scope: that name, that namespace)
+scripts/seal.sh --check-cert            # committed cert matches the cluster's active cert
+scripts/sealed-secrets-key.sh backup    # right away; store the file outside every repo
+```
+
+`validate.sh` fails on any plaintext `Secret`. Full procedure: [SECRETS.md](gitops-config/docs/SECRETS.md).
+
+### Step 6: Operate (phase 7)
+
+| Task | Command | Expected |
+|---|---|---|
+| Check a rollout | `scripts/argocd.sh app wait gitops-api-dev --sync --health --timeout 300` | exits 0 |
+| See which build is live | `kubectl -n gitops-dev get deploy gitops-api -o jsonpath='{..image}'` | the digest from `overlays/dev/kustomization.yaml` |
+| Drift in dev or staging | `kubectl -n gitops-dev scale deploy gitops-api --replicas=5` | reverted within seconds |
+| Drift in prod | the same against `gitops-prod` | stays `OutOfSync`, not reverted |
+| Roll back | `git revert -m 1 <promotion-merge>` | dev and staging heal themselves; prod needs a manual sync |
+
+Do **not** use `kubectl rollout undo` or `argocd app rollback` on dev or staging: self-heal puts Git's state straight back.
+
+For load tests, use a **long-lived** pod labelled `app.kubernetes.io/role: api-client`. Short-lived `kubectl run --rm` pods
+slip past kindnet's NetworkPolicy filtering for their first few moments
+([phase-06 caveat](docs/evidence/phase-06.md#networkpolicy-kindnet-v20260820-69b56db7-policy-engine-ready)).
+
+### Moving beyond kind
+
+To run the same manifests on a real cluster:
+
+1. Remove the `ghcr.io` mirror and pull straight from GHCR (add an `imagePullSecret` if the package is private).
+2. Use a CNI that enforces NetworkPolicy from the moment a pod starts (for example Cilium or Calico).
+3. Set `whenUnsatisfiable: DoNotSchedule` in prod and run at least three nodes across zones.
+4. Re-seal every secret with the new cluster's certificate. Sealed data is bound to the controller's key.
+5. Phase 9 of the Implementation Guide covers the rest of the target architecture.
+
+All the day-to-day commands (inspect, debug, promote, roll back, drills, secrets), each marked with its safety level:
+[Kubernetes command reference](docs/KUBERNETES-COMMANDS.md).
 
 ## Run the service
 
@@ -261,6 +403,7 @@ As of **2026-11-13**. Details and evidence: [CHECKLIST.md](docs/CHECKLIST.md).
 | [Implementation Guide](docs/design/IMPLEMENTATION-GUIDE.md) | Phase-by-phase steps: do, verify, capture |
 | [Checklist](docs/CHECKLIST.md) | Current status per phase |
 | [Evidence](docs/evidence/) | Raw command output behind every ✅ |
+| [Kubernetes command reference](docs/KUBERNETES-COMMANDS.md) | Practical kubectl / Argo CD commands per task, with safety level and best practices |
 | [Promotion runbook](gitops-config/docs/PROMOTION.md) | Promote, verify, roll back, handle drift |
 | [Secrets runbook](gitops-config/docs/SECRETS.md) | Seal, rotate, back up and restore |
 | [Original architecture](docs/ARCHITECTURE.md) | Phase-1 design intent (superseded by the HLD) |

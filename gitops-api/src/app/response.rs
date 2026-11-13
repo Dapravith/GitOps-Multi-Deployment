@@ -1,17 +1,17 @@
-//! Response bodies shared by more than one route module.
+//! Response bodies shared across modules.
 
 use axum::Json;
 use axum::response::{IntoResponse, Response};
 use serde::Serialize;
 
-/// `{"status": "<value>"}` — the body for probes and simple errors.
+/// `{"status": "<value>"}`: the body for probes and every error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-pub(super) struct StatusBody {
+pub(crate) struct StatusBody {
     status: &'static str,
 }
 
 impl StatusBody {
-    pub(super) const fn new(status: &'static str) -> Self {
+    pub(crate) const fn new(status: &'static str) -> Self {
         Self { status }
     }
 }

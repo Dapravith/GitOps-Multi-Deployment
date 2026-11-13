@@ -1,12 +1,40 @@
 //! Structured logging. JSON by default (for log shippers), `pretty` for local dev.
 //! Verbosity is controlled with `RUST_LOG` (default `info`).
 
+use std::str::FromStr;
+
 use tracing::warn;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::{SubscriberInitExt, TryInitError};
 use tracing_subscriber::{EnvFilter, fmt};
 
-use crate::config::LogFormat;
+/// Output encoding for log lines.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LogFormat {
+    /// One JSON object per line, for log shippers.
+    #[default]
+    Json,
+    /// Human-readable, for local development.
+    Pretty,
+}
+
+/// A `LOG_FORMAT` value that is neither `json` nor `pretty`. Holds the
+/// normalised (trimmed, lower-cased) input.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("unknown log format {0:?}")]
+pub struct UnknownLogFormat(pub String);
+
+impl FromStr for LogFormat {
+    type Err = UnknownLogFormat;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "json" => Ok(Self::Json),
+            "pretty" | "text" => Ok(Self::Pretty),
+            other => Err(UnknownLogFormat(other.to_owned())),
+        }
+    }
+}
 
 /// Environment variable holding the `EnvFilter` directives.
 pub const LOG_FILTER_ENV: &str = EnvFilter::DEFAULT_ENV;
@@ -62,6 +90,17 @@ fn env_filter(raw: Option<String>) -> (EnvFilter, Option<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_log_format_case_insensitively() {
+        assert_eq!(" JSON ".parse(), Ok(LogFormat::Json));
+        assert_eq!("Pretty".parse(), Ok(LogFormat::Pretty));
+        assert_eq!("text".parse(), Ok(LogFormat::Pretty));
+        assert_eq!(
+            "XML".parse::<LogFormat>(),
+            Err(UnknownLogFormat("xml".to_owned()))
+        );
+    }
 
     #[test]
     fn unset_filter_uses_default_without_warning() {
