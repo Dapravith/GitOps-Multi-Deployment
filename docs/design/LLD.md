@@ -11,15 +11,26 @@ Each section names the file and lines that implement it, so the design can be ch
 
 ```mermaid
 flowchart LR
-  main[main.rs<br/>bootstrap + exit code] --> config[config.rs]
-  main --> telemetry[telemetry.rs]
-  main --> server[server.rs<br/>bind · serve · drain]
-  server --> shutdown[shutdown.rs<br/>SIGTERM/SIGINT]
-  server --> routes[routes/mod.rs<br/>router + trace + 404]
-  routes --> health[routes/health.rs]
-  routes --> version[routes/version.rs]
-  health --> state[state.rs<br/>AtomicBool ready]
-  version --> build[build_info.rs<br/>GIT_SHA at compile time]
+  mainRs["main.rs: bootstrap and exit code"]
+  configRs["config.rs"]
+  telemetryRs["telemetry.rs"]
+  serverRs["server.rs: bind, serve, drain"]
+  shutdownRs["shutdown.rs: SIGTERM and SIGINT"]
+  routesRs["routes/mod.rs: router, trace, 404"]
+  healthRs["routes/health.rs"]
+  versionRs["routes/version.rs"]
+  stateRs["state.rs: AtomicBool ready"]
+  buildRs["build_info.rs: GIT_SHA at compile time"]
+
+  mainRs --> configRs
+  mainRs --> telemetryRs
+  mainRs --> serverRs
+  serverRs --> shutdownRs
+  serverRs --> routesRs
+  routesRs --> healthRs
+  routesRs --> versionRs
+  healthRs --> stateRs
+  versionRs --> buildRs
 ```
 
 Rule: dependencies point one way, `main → server → routes → state`. Handlers never read env vars
@@ -43,9 +54,9 @@ responses in all three namespaces ✅ E-06.
 
 ```mermaid
 stateDiagram-v2
-  [*] --> NotReady: AppState::new (ready=false)
-  NotReady --> Ready: serve() starts, set_ready(true)
-  Ready --> Draining: SIGTERM/SIGINT, set_ready(false)
+  [*] --> NotReady: AppState new, ready false
+  NotReady --> Ready: serve starts, set_ready true
+  Ready --> Draining: SIGTERM or SIGINT, set_ready false
   Draining --> [*]: in-flight requests done, exit 0
 ```
 
@@ -235,9 +246,11 @@ key backup/restore drill ✅ E-16. Runbook: [gitops-config/docs/SECRETS.md](../.
 
 ```mermaid
 flowchart LR
-  T[test<br/>fmt · clippy -D warnings · test --locked] --> I
-  S[scan-source<br/>gitleaks history · trivy Cargo.lock · hadolint] --> I
-  I[image<br/>buildx amd64+arm64 · SBOM · provenance=max<br/>push sha-&lt;commit&gt; on main<br/>trivy image@digest · attest]
+  T["test: fmt, clippy with -D warnings, cargo test --locked"]
+  S["scan-source: gitleaks history, trivy Cargo.lock, hadolint"]
+  I["image: buildx amd64 and arm64, SBOM, provenance max, push sha-COMMIT on main, trivy on the digest, attest"]
+  T --> I
+  S --> I
 ```
 
 | Rule | Line |

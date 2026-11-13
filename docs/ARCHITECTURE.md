@@ -46,15 +46,25 @@ Separation matters: CI has write access to the **app** repo's packages and can o
 
 ```mermaid
 flowchart LR
-  dev[Developer] -->|PR| app[gitops-api repo]
-  app -->|merge to main| ci[GitHub Actions<br/>fmt · clippy · test · scan · build]
-  ci -->|push multi-arch image| ghcr[(ghcr.io<br/>image@sha256)]
-  ci -->|PR: bump dev digest| cfg[gitops-config repo]
-  cfg -->|auto-sync| dev_ns[ns: gitops-dev]
-  cfg -->|reviewed PR, auto-sync| stg_ns[ns: gitops-staging]
-  cfg -->|reviewed PR + manual Sync| prd_ns[ns: gitops-prod]
-  argo[Argo CD in cluster] -. pulls .-> cfg
-  argo -. pulls image .-> ghcr
+  dev["Developer"]
+  app["gitops-api repo"]
+  ci["GitHub Actions: fmt, clippy, test, scan, build"]
+  ghcr[("ghcr.io: image by sha256 digest")]
+  cfg["gitops-config repo"]
+  dev_ns["ns gitops-dev"]
+  stg_ns["ns gitops-staging"]
+  prd_ns["ns gitops-prod"]
+  argo["Argo CD in cluster"]
+
+  dev -->|"pull request"| app
+  app -->|"merge to main"| ci
+  ci -->|"push multi-arch image"| ghcr
+  ci -->|"PR to bump dev digest"| cfg
+  cfg -->|"auto-sync"| dev_ns
+  cfg -->|"reviewed PR, auto-sync"| stg_ns
+  cfg -->|"reviewed PR, manual sync"| prd_ns
+  argo -.->|"pulls"| cfg
+  argo -.->|"pulls image"| ghcr
 ```
 
 ## Environment policy

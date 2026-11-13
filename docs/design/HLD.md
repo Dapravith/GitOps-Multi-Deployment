@@ -48,19 +48,29 @@ deliberately trivial, so that the delivery system is what gets tested.
 
 ```mermaid
 flowchart LR
-  dev([Developer]) -- PR --> api[(GitHub<br/>Dapravith/gitops-api)]
-  rel([Release manager]) -- PR / review --> cfg[(GitHub<br/>Dapravith/gitops-config)]
-  rel -- manual sync of prod --> argo
-  api -- Actions: test, scan, build --> ghcr[(GHCR<br/>ghcr.io/dapravith/gitops-api)]
-  api -- keyless signing --> sig[(Sigstore<br/>Fulcio / Rekor)]
-  cfg -- image-updater pulls facts --> api
-  cfg -- image-updater verifies --> sig
-  subgraph cluster [Kubernetes cluster: kind gitops-lab]
-    argo[Argo CD] --> envs[gitops-dev · gitops-staging · gitops-prod]
-    ss[Sealed Secrets controller] --> envs
+  dev(["Developer"])
+  rel(["Release manager"])
+  api[("GitHub: Dapravith/gitops-api")]
+  cfg[("GitHub: Dapravith/gitops-config")]
+  ghcr[("GHCR: ghcr.io/dapravith/gitops-api")]
+  sig[("Sigstore: Fulcio and Rekor")]
+  subgraph cluster ["Kubernetes cluster (kind gitops-lab)"]
+    argo["Argo CD"]
+    ss["Sealed Secrets controller"]
+    envs["gitops-dev, gitops-staging, gitops-prod"]
   end
-  argo -. polls every 60 s .-> cfg
-  envs -. pull by digest .-> ghcr
+
+  dev -->|"pull request"| api
+  rel -->|"pull request and review"| cfg
+  rel -->|"manual sync of prod"| argo
+  api -->|"Actions: test, scan, build"| ghcr
+  api -->|"keyless signing"| sig
+  cfg -->|"image-updater reads CI result"| api
+  cfg -->|"image-updater verifies provenance"| sig
+  argo -->|"sync"| envs
+  ss -->|"decrypt secrets"| envs
+  argo -.->|"polls every 60 s"| cfg
+  envs -.->|"pull by digest"| ghcr
 ```
 
 **Direction of trust is inward.** The cluster pulls from Git and the registry. Nothing outside the cluster

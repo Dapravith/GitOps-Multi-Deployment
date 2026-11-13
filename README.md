@@ -36,14 +36,27 @@
 
 ```mermaid
 flowchart LR
-  dev([Developer]) -->|PR| api[gitops-api repo]
-  api -->|CI: test · scan · build · sign| ghcr[(GHCR<br/>image@sha256)]
-  cfg[gitops-config repo] -->|image-updater verifies<br/>CI result + provenance| cfg
-  cfg -->|auto-sync| d[gitops-dev]
-  cfg -->|reviewed PR, auto-sync| s[gitops-staging]
-  cfg -->|reviewed PR + manual sync| p[gitops-prod]
-  argo[Argo CD<br/>in-cluster] -. polls .-> cfg
-  d & s & p -. pull by digest .-> ghcr
+  devUser(["Developer"])
+  apiRepo["gitops-api repo"]
+  ghcr[("GHCR: image by digest")]
+  updater["image-updater"]
+  cfgRepo["gitops-config repo"]
+  argo["Argo CD (in-cluster)"]
+  devNs["gitops-dev"]
+  stgNs["gitops-staging"]
+  prdNs["gitops-prod"]
+
+  devUser -->|"pull request"| apiRepo
+  apiRepo -->|"CI: test, scan, build, sign"| ghcr
+  ghcr -->|"verify CI result and provenance"| updater
+  updater -->|"dev PR"| cfgRepo
+  argo -.->|"polls"| cfgRepo
+  argo -->|"auto-sync"| devNs
+  argo -->|"auto-sync after reviewed PR"| stgNs
+  argo -->|"manual sync after reviewed PR"| prdNs
+  devNs -.->|"pull by digest"| ghcr
+  stgNs -.->|"pull by digest"| ghcr
+  prdNs -.->|"pull by digest"| ghcr
 ```
 
 Full design: [High-Level Design](docs/design/HLD.md) · [Low-Level Design](docs/design/LLD.md).
