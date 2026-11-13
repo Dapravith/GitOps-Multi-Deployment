@@ -1,0 +1,6 @@
+[submodule "gitops-api"]
+	path = gitops-api
+	url = https://github.com/Dapravith/gitops-api.git
+[submodule "gitops-config"]
+	path = gitops-config
+	url = https://github.com/Dapravith/gitops-config.git
