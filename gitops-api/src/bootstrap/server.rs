@@ -10,10 +10,12 @@ use std::io;
 use tokio::net::TcpListener;
 use tracing::info;
 
-use crate::config::Config;
-use crate::error::Error;
-use crate::state::AppState;
-use crate::{BUILD_INFO, routes, shutdown};
+use super::config::Config;
+use super::dependencies;
+use super::error::Error;
+use crate::app::{self, AppState, HttpLimits};
+use crate::platform::build_info::BUILD_INFO;
+use crate::platform::shutdown;
 
 /// Bind the configured address and serve until SIGTERM / SIGINT.
 ///
@@ -25,17 +27,19 @@ pub async fn run(config: &Config) -> Result<(), Error> {
     let listener = TcpListener::bind(addr)
         .await
         .map_err(|source| Error::Bind { addr, source })?;
-    let state = AppState::new(config.environment.as_str());
+    let state = dependencies::build(config);
 
     info!(
         %addr,
         environment = state.environment(),
         version = BUILD_INFO.version,
         git_sha = BUILD_INFO.git_sha,
+        request_timeout_ms = config.http.request_timeout.as_millis(),
+        max_body_bytes = config.http.max_body_bytes,
         "server listening"
     );
 
-    serve(listener, state, shutdown::signal())
+    serve(listener, state, config.http, shutdown::signal())
         .await
         .map_err(Error::Serve)
 }
@@ -48,11 +52,16 @@ pub async fn run(config: &Config) -> Result<(), Error> {
 ///
 /// # Errors
 /// Returns any I/O error from the underlying server.
-pub async fn serve<F>(listener: TcpListener, state: AppState, shutdown: F) -> io::Result<()>
+pub async fn serve<F>(
+    listener: TcpListener,
+    state: AppState,
+    limits: HttpLimits,
+    shutdown: F,
+) -> io::Result<()>
 where
     F: Future<Output = ()> + Send + 'static,
 {
-    let app = routes::router(state.clone());
+    let app = app::router(state.clone(), &limits);
 
     let drain = {
         let state = state.clone();

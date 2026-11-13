@@ -1,11 +1,11 @@
 use std::process::ExitCode;
 
-use gitops_api::{Config, Error, server, telemetry};
+use gitops_api::bootstrap;
 use tracing::{error, info};
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    let config = match bootstrap() {
+    let config = match bootstrap::init() {
         Ok(config) => config,
         Err(err) => {
             // Logging is not available yet, so report on stderr directly.
@@ -14,7 +14,7 @@ async fn main() -> ExitCode {
         }
     };
 
-    match server::run(&config).await {
+    match bootstrap::run(&config).await {
         Ok(()) => {
             info!("shutdown complete");
             ExitCode::SUCCESS
@@ -24,11 +24,4 @@ async fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
-}
-
-/// Everything that must succeed before the first log line can be emitted.
-fn bootstrap() -> Result<Config, Error> {
-    let config = Config::from_env()?;
-    telemetry::init(config.log_format)?;
-    Ok(config)
 }

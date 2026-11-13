@@ -1,12 +1,13 @@
-//! Top-level error: everything that can stop the process from starting or
-//! make it exit non-zero.
+//! Startup / fatal error: everything that can stop the process from starting
+//! or make it exit non-zero. Never returned to an HTTP client; for that see
+//! [`crate::app::ApiError`].
 
 use std::io;
 use std::net::SocketAddr;
 
 use tracing_subscriber::util::TryInitError;
 
-use crate::config::ConfigError;
+use super::config::ConfigError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

@@ -1,4 +1,10 @@
-//! Shared application state.
+//! Shared application state: the dependency container handlers extract from.
+//!
+//! Keep it a bag of cheap-to-clone handles (`Arc`s, pools, clients). When a
+//! module needs its own dependencies, add a field holding them behind the
+//! module's port trait (e.g. `Arc<dyn UserRepository>`) and expose it to that
+//! module's handlers with `axum::extract::FromRef`, so handlers ask for only
+//! what they use.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
